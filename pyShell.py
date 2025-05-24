@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import sys
 import os
+import subprocess
 import readline  # type: ignore Keep this import to properly handle arrow keys in the input
 
 from typing import List, Tuple, Dict, Callable, Type
@@ -34,6 +35,11 @@ class ExecutableCommand(Command):
     def __init__(self, command_path: str):
         super().__init__(os.path.basename(command_path))
         self.command_path = command_path
+
+    def execute(self, args: List[str]):
+        cmd = [self.name]
+        cmd.extend(args)
+        subprocess.run(cmd)
 
 
 class BuiltinCommand(Command):
