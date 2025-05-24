@@ -30,11 +30,28 @@ class EchoCommand(BuiltinCommand):
         # TODO handle flag aruments
         print(" ".join(args))
 
+class ExitCommand(BuiltinCommand):
+    NAME = "exit"
+
+    def __init__(self):
+        super().__init__(ExitCommand.NAME)
+
+    def execute(self, args: List[str]):
+        exit_code = 0
+        if args:
+            try:
+                exit_code = int(args[0])
+            except ValueError:
+                raise ValueError(f"{args[0]}: numeric argument required")
+
+        sys.exit(exit_code)
+
 class PyShell:
     def __init__(self):
         self.prompt = "$"
         self.builtin_commands = {
-            EchoCommand.NAME: EchoCommand()
+            EchoCommand.NAME: EchoCommand(),
+            ExitCommand.NAME: ExitCommand(),
         }
 
     # This is the "Read-Eval-Print Loop" (REPL) method
@@ -50,7 +67,7 @@ class PyShell:
             try:
                 command.execute(args)
             except Exception as e:
-                print(f"Error executing command '{command.name}': {e}", file=sys.stderr)
+                print(f"{command.name}: {e}", file=sys.stderr)
 
     def eval(self, user_input: str) -> Tuple[Command, List[str]]:
         parts = user_input.split()
