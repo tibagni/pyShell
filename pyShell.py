@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys
+import os
 import readline  # type: ignore Keep this import to properly handle arrow keys in the input
 
 from typing import List, Tuple, Dict, Callable, Type
@@ -27,6 +28,12 @@ class CommandNotFound(Command):
 
     def execute(self, args: List[str]):
         print(f"{self.name}: Command not found", file=sys.stderr)
+
+
+class ExecutableCommand(Command):
+    def __init__(self, command_path: str):
+        super().__init__(os.path.basename(command_path))
+        self.command_path = command_path
 
 
 class BuiltinCommand(Command):
@@ -76,7 +83,10 @@ class TypeCommand(BuiltinCommand):
         for arg in args:
             command_factory = self.shell._find_command(arg)
             if issubclass(command_factory.command_type, BuiltinCommand):
-                print(f"{arg}: is a shell builtin")
+                print(f"{arg} is a shell builtin")
+            elif issubclass(command_factory.command_type, ExecutableCommand):
+                # For executable commands, the first argument of the factory is the command path
+                print(f"{arg} is {command_factory.args[0]}")
             else:
                 print(f"{arg}: not found", file=sys.stderr)
 
@@ -101,9 +111,36 @@ class PyShell:
         }
 
     def _find_command(self, command_name: str) -> CommandFactory:
+        # First check if the command is a built-in command
         if command_name in self.builtin_commands_factory:
             return self.builtin_commands_factory[command_name]
 
+        # Then check if the command is an external command
+        command_path = None
+        path_env = os.environ["PATH"].split(":")
+        for path_entry in path_env:
+            if os.path.isdir(path_entry):
+                for path_file in os.listdir(path_entry):
+                    full_path_file = os.path.join(path_entry, path_file)
+                    if (
+                        command_name == path_file
+                        and os.path.isfile(full_path_file)
+                        and os.access(full_path_file, os.X_OK)
+                    ):
+                        command_path = full_path_file
+                        break
+            elif (
+                os.path.isfile(path_entry)
+                and command_name == os.path.basename(path_entry)
+                and os.access(path_entry, os.X_OK)
+            ):
+                command_path = path_entry
+                break
+
+        if command_path:
+            return CommandFactory(ExecutableCommand, command_path)
+
+        # If the command is not found, return a CommandNotFound factory
         return CommandFactory(CommandNotFound, command_name)
 
     # This is the "Read-Eval-Print Loop" (REPL) method
