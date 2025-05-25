@@ -148,5 +148,52 @@ class TestPyShell(unittest.TestCase):
         mock_chdir.assert_called_once_with("/mock/home")
 
 
+    @patch.dict('os.environ', {'PATH': ''}, clear=True)
+    def test_handle_tab_completion_builtin_commands(self):
+        # Simulate tab completion for an empty input
+        result = []
+        for state in range(10):  # Arbitrary large number to exhaust suggestions
+            suggestion = self.shell._handle_tab_completion("e", state)
+            if suggestion is None:
+                break
+            result.append(suggestion)
+
+        expected = [cmd for cmd in self.shell.builtin_commands_factory.keys() if cmd.startswith("e")]
+        self.assertEqual(sorted(result), sorted(expected))
+
+    @patch.dict('os.environ', {'PATH': '/mock/bin'}, clear=True)
+    @patch('os.listdir', side_effect=lambda path: {'/mock/bin': ['cmd1', 'cmd2']}.get(path, []))
+    @patch('os.path.isdir', side_effect=lambda path: path in ['/mock/bin'])
+    @patch('os.path.isfile', side_effect=lambda path: path in ['/mock/bin/cmd1', '/mock/bin/cmd2'])
+    def test_handle_tab_completion_commands_and_path(self, mock_isfile, mock_isdir, mock_listdir):
+        # Simulate tab completion for an empty input
+        result = []
+        for state in range(10):  # Arbitrary large number to exhaust suggestions
+            suggestion = self.shell._handle_tab_completion("c", state)
+            if suggestion is None:
+                break
+            result.append(suggestion)
+
+        expected_builtin = [cmd for cmd in self.shell.builtin_commands_factory.keys() if cmd.startswith("c")]
+        expected = ['cmd1', 'cmd2'] + expected_builtin
+        self.assertEqual(sorted(result), sorted(expected))
+
+    
+    @patch.dict('os.environ', {'PATH': ''}, clear=True)
+    @patch('os.listdir', side_effect=lambda path: ["file1", "file2", "cmd1"])
+    @patch('os.getcwd', side_effect=lambda: "mock")
+    def test_handle_tab_completion_commands_and_files(self, mock_getcwd, mock_listdir):
+        # Simulate tab completion for an empty input
+        result = []
+        for state in range(10):  # Arbitrary large number to exhaust suggestions
+            suggestion = self.shell._handle_tab_completion("f", state)
+            if suggestion is None:
+                break
+            result.append(suggestion)
+
+        expected_builtin = [cmd for cmd in self.shell.builtin_commands_factory.keys() if cmd.startswith("f")]
+        expected = ['file1', 'file2'] + expected_builtin
+        self.assertEqual(sorted(result), sorted(expected))
+
 if __name__ == "__main__":
     unittest.main()

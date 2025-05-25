@@ -154,6 +154,7 @@ class PyShell:
             CdCommand.NAME: CommandFactory(CdCommand, self)
         }
         self._last_dir = os.getcwd()
+        self._cached_available_items = set()
 
     def _find_command(self, command_name: str) -> CommandFactory:
         # First check if the command is a built-in command
@@ -188,8 +189,50 @@ class PyShell:
         # If the command is not found, return a CommandNotFound factory
         return CommandFactory(CommandNotFound, command_name)
 
+    def _handle_tab_completion(self, text: str, state: int) -> Optional[str]:
+        current_inut_line = readline.get_line_buffer()
+        input_line_parts = current_inut_line.split(" ")
+
+        is_argument_completion = len(input_line_parts) > 1
+
+        if state == 0:
+            builtin_commands = list(self.builtin_commands_factory.keys())
+            local_files = os.listdir(os.getcwd())
+            path_files = []
+            if text:
+                potential_files = set()  # Use a set to avoid duplicates
+                path_env = os.environ["PATH"].split(":")
+                for path_entry in path_env:
+                    if os.path.isdir(path_entry):
+                        for path_file in os.listdir(path_entry):
+                            full_path_file = os.path.join(path_entry, path_file)
+                            if path_file.startswith(text) and os.path.isfile(full_path_file):
+                                potential_files.add(path_file)
+                    elif os.path.isfile(path_entry) and os.path.basename(path_entry).startswith(
+                        text
+                    ):
+                        potential_files.add(os.path.basename(path_entry))
+
+                path_files = list(potential_files)
+
+            self._cached_available_items = set(builtin_commands + local_files + path_files)
+            # TODO handle argument completion
+
+        suggestions = [item for item in self._cached_available_items if item.startswith(text)]
+
+        if len(suggestions) > state:
+            # If there is only one suggestion, add a trailing space
+            add_trailing_space = len(suggestions) == 1
+            return suggestions[state] + (" " if add_trailing_space else "")
+
+        return None
+
+
     # This is the "Read-Eval-Print Loop" (REPL) method
     def repl(self):
+        readline.set_completer(self._handle_tab_completion)
+        readline.parse_and_bind("tab: complete")
+
         while True:
             input_line = input(f"{self.prompt} ")
 
