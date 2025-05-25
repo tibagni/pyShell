@@ -192,38 +192,55 @@ class PyShell:
         # If the command is not found, return a CommandNotFound factory
         return CommandFactory(CommandNotFound, command_name)
 
-    def _handle_tab_completion(self, text: str, state: int) -> Optional[str]:
-        current_inut_line = readline.get_line_buffer()
-        input_line_parts = current_inut_line.split(" ")
+    def _find_executables_in_path(self, command_prefix: str) -> List[str]:
+        potential_executables = set()  # Use a set to avoid duplicates
+        path_env = os.environ["PATH"].split(":")
 
+        for path_entry in path_env:
+            if os.path.isdir(path_entry):
+                for path_file in os.listdir(path_entry):
+                    full_path_file = os.path.join(path_entry, path_file)
+                    if (
+                        path_file.startswith(command_prefix) and
+                        os.path.isfile(full_path_file) and
+                        os.access(full_path_file, os.X_OK)
+                    ):
+                        potential_executables.add(path_file)
+            elif (
+                os.path.isfile(path_entry) and
+                os.path.basename(path_entry).startswith(command_prefix) and
+                os.access(path_entry, os.X_OK)
+            ):
+                potential_executables.add(os.path.basename(path_entry))
+
+        return list(potential_executables)
+
+    def _handle_tab_completion(self, text: str, state: int) -> Optional[str]:
         # TODO handle argument completion
         # TODO handle path completion
-        is_argument_completion = len(input_line_parts) > 1
+        # current_inut_line = readline.get_line_buffer()
+        # input_line_parts = current_inut_line.split(" ")
+        # is_argument_completion = len(input_line_parts) > 1
 
+        # Build the suggestions only the first time and cache them
         if state == 0:
+            # 1 - List the potential builtin commands
             builtin_commands = list(self.builtin_commands_factory.keys())
+            builtin_commands = [cmd for cmd in builtin_commands if cmd.startswith(text)]
+
+            # 2 - List the potential local files
             local_files = os.listdir(os.getcwd())
+            local_files = [file for file in local_files if file.startswith(text)]
+
+            # 3 - List the potential path files
             path_files = []
             if text:
-                potential_files = set()  # Use a set to avoid duplicates
-                path_env = os.environ["PATH"].split(":")
-                for path_entry in path_env:
-                    if os.path.isdir(path_entry):
-                        for path_file in os.listdir(path_entry):
-                            full_path_file = os.path.join(path_entry, path_file)
-                            if path_file.startswith(text) and os.path.isfile(full_path_file):
-                                potential_files.add(path_file)
-                    elif os.path.isfile(path_entry) and os.path.basename(path_entry).startswith(
-                        text
-                    ):
-                        potential_files.add(os.path.basename(path_entry))
+                path_files = self._find_executables_in_path(text)
 
-                path_files = list(potential_files)
-
+            # 4 - Combine all suggestions
             self._cached_available_items = set(builtin_commands + local_files + path_files)
 
-        suggestions = [item for item in self._cached_available_items if item.startswith(text)]
-
+        suggestions = list(self._cached_available_items)
         if len(suggestions) > state:
             # If there is only one suggestion, add a trailing space
             add_trailing_space = len(suggestions) == 1

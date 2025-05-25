@@ -165,7 +165,8 @@ class TestPyShell(unittest.TestCase):
     @patch('os.listdir', side_effect=lambda path: {'/mock/bin': ['cmd1', 'cmd2']}.get(path, []))
     @patch('os.path.isdir', side_effect=lambda path: path in ['/mock/bin'])
     @patch('os.path.isfile', side_effect=lambda path: path in ['/mock/bin/cmd1', '/mock/bin/cmd2'])
-    def test_handle_tab_completion_commands_and_path(self, mock_isfile, mock_isdir, mock_listdir):
+    @patch('os.access', side_effect=lambda path, mode: path in ['/mock/bin/cmd1', '/mock/bin/cmd2'])
+    def test_handle_tab_completion_commands_and_path(self, mock_access, mock_isfile, mock_isdir, mock_listdir):
         # Simulate tab completion for an empty input
         result = []
         for state in range(10):  # Arbitrary large number to exhaust suggestions
@@ -194,6 +195,41 @@ class TestPyShell(unittest.TestCase):
         expected_builtin = [cmd for cmd in self.shell.builtin_commands_factory.keys() if cmd.startswith("f")]
         expected = ['file1', 'file2'] + expected_builtin
         self.assertEqual(sorted(result), sorted(expected))
+
+    @patch.dict('os.environ', {'PATH': '/mock/bin:/mock/usr/bin'}, clear=True)
+    @patch('os.listdir', side_effect=lambda path: {
+        '/mock/bin': ['cmd1', 'cmd2', 'not_executable'],
+        '/mock/usr/bin': ['cmd3', 'cmd4']
+    }.get(path, []))
+    @patch('os.path.isfile', side_effect=lambda path: path in [
+        '/mock/bin/cmd1', '/mock/bin/cmd2', '/mock/usr/bin/cmd3', '/mock/usr/bin/cmd4'
+    ])
+    @patch('os.access', side_effect=lambda path, mode: path in [
+        '/mock/bin/cmd1', '/mock/bin/cmd2', '/mock/usr/bin/cmd3', '/mock/usr/bin/cmd4'
+    ])
+    @patch('os.path.isdir', side_effect=lambda path: path in ['/mock/bin', '/mock/usr/bin'])
+    def test_find_executables_in_path(self, mock_isdir, mock_access, mock_isfile, mock_listdir):
+        result = self.shell._find_executables_in_path("cmd")
+        expected = ['cmd1', 'cmd2', 'cmd3', 'cmd4']
+        self.assertEqual(sorted(result), sorted(expected))
+
+    @patch.dict('os.environ', {'PATH': '/mock/bin:/mock/usr/bin'}, clear=True)
+    @patch('os.listdir', side_effect=lambda path: {
+        '/mock/bin': ['cmd1', 'cmd2'],
+        '/mock/usr/bin': ['cmd3', 'cmd4']
+    }.get(path, []))
+    @patch('os.path.isfile', side_effect=lambda path: path in [
+        '/mock/bin/cmd1', '/mock/bin/cmd2', '/mock/usr/bin/cmd3', '/mock/usr/bin/cmd4'
+    ])
+    @patch('os.access', side_effect=lambda path, mode: path in [
+        '/mock/bin/cmd1', '/mock/bin/cmd2', '/mock/usr/bin/cmd3', '/mock/usr/bin/cmd4'
+    ])
+    @patch('os.path.isdir', side_effect=lambda path: path in ['/mock/bin', '/mock/usr/bin'])
+    def test_find_executables_in_path_partial_match(self, mock_isdir, mock_access, mock_isfile, mock_listdir):
+        result = self.shell._find_executables_in_path("cmd3")
+        expected = ['cmd3']
+        self.assertEqual(result, expected)
+
 
 if __name__ == "__main__":
     unittest.main()
