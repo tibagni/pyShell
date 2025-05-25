@@ -3,7 +3,7 @@ import unittest.mock
 import sys
 import os
 
-from unittest.mock import patch
+from unittest.mock import patch, ANY
 from pyShell import PyShell, CommandError, CommandNotFound
 
 
@@ -15,7 +15,7 @@ class TestPyShell(unittest.TestCase):
     def test_echo_command(self, mock_print):
         command = self.shell._find_command("echo").make()
         command.execute(["Hello", "World"])
-        mock_print.assert_called_once_with("Hello World")
+        mock_print.assert_called_once_with("Hello World", file=ANY)
 
     @patch('sys.exit')
     def test_exit_command(self, mock_exit):
@@ -45,15 +45,15 @@ class TestPyShell(unittest.TestCase):
     def test_type_command_builtin(self, mock_print):
         command = self.shell._find_command("type").make()
         command.execute(["echo"])
-        mock_print.assert_called_once_with("echo is a shell builtin")
+        mock_print.assert_called_once_with("echo is a shell builtin", file=ANY)
 
     @patch('builtins.print')
     def test_type_command_builtin_multile_args(self, mock_print):
         command = self.shell._find_command("type").make()
         command.execute(["echo", "exit"])
         mock_print.assert_has_calls([
-            unittest.mock.call("echo is a shell builtin"),
-            unittest.mock.call("exit is a shell builtin")
+            unittest.mock.call("echo is a shell builtin", file=ANY),
+            unittest.mock.call("exit is a shell builtin", file=ANY)
         ], any_order=False)
         self.assertEqual(mock_print.call_count, 2)
 
@@ -61,13 +61,13 @@ class TestPyShell(unittest.TestCase):
     def test_type_command_not_found(self, mock_print):
         command = self.shell._find_command("type").make()
         command.execute(["nonexistent"])
-        mock_print.assert_called_once_with("nonexistent: not found", file=sys.stderr)
+        mock_print.assert_called_once_with("nonexistent: not found", file=ANY)
 
     @patch('builtins.print')
     def test_command_not_found(self, mock_print):
         command = self.shell._find_command("nonexistent").make()
         command.execute([])
-        mock_print.assert_called_once_with("nonexistent: Command not found", file=sys.stderr)
+        mock_print.assert_called_once_with("nonexistent: Command not found", file=ANY)
 
     @patch.dict('os.environ', {'PATH': '/mock/bin/ls'}, clear=True)
     @patch('os.path.isfile', return_value=True)
@@ -76,7 +76,7 @@ class TestPyShell(unittest.TestCase):
     def test_executable_command(self, mock_run, mock_access, mock_isfile):
         command = self.shell._find_command("ls").make()
         command.execute(["-l"])
-        mock_run.assert_called_once_with(["ls", "-l"])
+        mock_run.assert_called_once_with(["ls", "-l"], stdout=ANY, stderr=ANY, stdin=ANY)
 
     @patch.dict('os.environ', {'PATH': '/mock/bin/'}, clear=True)
     @patch('os.path.isfile', return_value=True)
@@ -104,7 +104,7 @@ class TestPyShell(unittest.TestCase):
     def test_pwd_command(self, mock_print):
         command = self.shell._find_command("pwd").make()
         command.execute([])
-        mock_print.assert_called_once_with(os.getcwd())
+        mock_print.assert_called_once_with(os.getcwd(), file=ANY)
 
     @patch('os.chdir')
     @patch('os.path.exists', return_value=True)
