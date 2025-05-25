@@ -18,6 +18,9 @@ class CommandError(Exception):
 class Command:
     def __init__(self, name: str):
         self.name = name
+        self.out_stream = sys.stdout
+        self.err_stream = sys.stderr
+        self.in_stream = sys.stdin
 
     def execute(self, args: List[str]):
         pass
@@ -28,7 +31,7 @@ class CommandNotFound(Command):
         super().__init__(name)
 
     def execute(self, args: List[str]):
-        print(f"{self.name}: Command not found", file=sys.stderr)
+        print(f"{self.name}: Command not found", file=self.err_stream)
 
 
 class ExecutableCommand(Command):
@@ -39,7 +42,7 @@ class ExecutableCommand(Command):
     def execute(self, args: List[str]):
         cmd = [self.name]
         cmd.extend(args)
-        subprocess.run(cmd)
+        subprocess.run(cmd, stdout=self.out_stream, stderr=self.err_stream, stdin=self.in_stream)
 
 
 class BuiltinCommand(Command):
@@ -55,7 +58,7 @@ class EchoCommand(BuiltinCommand):
 
     def execute(self, args: List[str]):
         # TODO handle flag aruments
-        print(" ".join(args))
+        print(" ".join(args), file=self.out_stream)
 
 
 class ExitCommand(BuiltinCommand):
@@ -89,12 +92,12 @@ class TypeCommand(BuiltinCommand):
         for arg in args:
             command_factory = self.shell._find_command(arg)
             if issubclass(command_factory.command_type, BuiltinCommand):
-                print(f"{arg} is a shell builtin")
+                print(f"{arg} is a shell builtin", file=self.out_stream)
             elif issubclass(command_factory.command_type, ExecutableCommand):
                 # For executable commands, the first argument of the factory is the command path
-                print(f"{arg} is {command_factory.args[0]}")
+                print(f"{arg} is {command_factory.args[0]}", file=self.out_stream)
             else:
-                print(f"{arg}: not found", file=sys.stderr)
+                print(f"{arg}: not found", file=self.err_stream)
 
 class PwdCommand(BuiltinCommand):
     NAME = "pwd"
@@ -103,16 +106,7 @@ class PwdCommand(BuiltinCommand):
         super().__init__(PwdCommand.NAME)
 
     def execute(self, args: List[str]):
-        print(os.getcwd())
-
-class CommandFactory:
-    def __init__(self, command_type: Type[Command], *args, **kwargs):
-        self.command_type = command_type
-        self.args = args
-        self.kwargs = kwargs
-
-    def make(self) -> Command:
-        return self.command_type(*self.args, **self.kwargs)
+        print(os.getcwd(), file=self.out_stream)
 
 class CdCommand(BuiltinCommand):
     NAME = "cd"
@@ -128,7 +122,7 @@ class CdCommand(BuiltinCommand):
         if len(args) > 1:
             raise CommandError(f"too many arguments")
 
-        # Use expandpath to handle special cases like '~'
+        # Use expanduser to handle special cases like '~'
         target_dir = os.path.expanduser(args[0])
 
         if target_dir == "-":
@@ -141,6 +135,15 @@ class CdCommand(BuiltinCommand):
 
         self.shell._last_dir = os.getcwd()
         os.chdir(target_dir)
+
+class CommandFactory:
+    def __init__(self, command_type: Type[Command], *args, **kwargs):
+        self.command_type = command_type
+        self.args = args
+        self.kwargs = kwargs
+
+    def make(self) -> Command:
+        return self.command_type(*self.args, **self.kwargs)
 
 
 class PyShell:
@@ -193,6 +196,8 @@ class PyShell:
         current_inut_line = readline.get_line_buffer()
         input_line_parts = current_inut_line.split(" ")
 
+        # TODO handle argument completion
+        # TODO handle path completion
         is_argument_completion = len(input_line_parts) > 1
 
         if state == 0:
@@ -216,7 +221,6 @@ class PyShell:
                 path_files = list(potential_files)
 
             self._cached_available_items = set(builtin_commands + local_files + path_files)
-            # TODO handle argument completion
 
         suggestions = [item for item in self._cached_available_items if item.startswith(text)]
 
