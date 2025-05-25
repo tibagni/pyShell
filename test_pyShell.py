@@ -1,6 +1,7 @@
 import unittest
 import unittest.mock
 import sys
+import os
 
 from unittest.mock import patch
 from pyShell import PyShell, CommandError, CommandNotFound
@@ -99,6 +100,53 @@ class TestPyShell(unittest.TestCase):
             command.execute(["-l"])
             self.assertTrue(isinstance(command, CommandNotFound))
             mock_run.assert_not_called()
+
+    @patch('builtins.print')
+    def test_pwd_command(self, mock_print):
+        command = self.shell._find_command("pwd").make()
+        command.execute([])
+        mock_print.assert_called_once_with(os.getcwd())
+
+    @patch('os.chdir')
+    @patch('os.path.exists', return_value=True)
+    @patch('os.path.isdir', return_value=True)
+    def test_cd_command(self, mock_isdir, mock_exists, mock_chdir):
+        command = self.shell._find_command("cd").make()
+        command.execute(["/mock/new_dir"])
+        mock_chdir.assert_called_once_with("/mock/new_dir")
+
+    @patch('os.chdir')
+    @patch('os.getcwd', side_effect=["/mock/old_dir", "/mock/new_dir"])
+    def test_cd_command_with_dash(self, mock_getcwd, mock_chdir):
+        self.shell._last_dir = "/mock/old_dir"
+        command = self.shell._find_command("cd").make()
+        command.execute(["-"])
+        mock_chdir.assert_called_once_with("/mock/old_dir")
+
+    @patch('os.path.isdir', return_value=False)
+    @patch('os.path.exists', return_value=True)
+    def test_cd_command_not_a_directory(self, mock_exists, mock_isdir):
+        command = self.shell._find_command("cd").make()
+        with self.assertRaises(CommandError) as context:
+            command.execute(["/mock/file"])
+        self.assertEqual(str(context.exception), "/mock/file: Not a directory")
+
+    @patch('os.path.exists', return_value=False)
+    def test_cd_command_no_such_file_or_directory(self, mock_exists):
+        command = self.shell._find_command("cd").make()
+        with self.assertRaises(CommandError) as context:
+            command.execute(["/mock/nonexistent"])
+        self.assertEqual(str(context.exception), "/mock/nonexistent: No such file or directory")
+
+    @patch('os.path.expanduser', return_value="/mock/home")
+    @patch('os.path.exists', return_value=True)
+    @patch('os.path.isdir', return_value=True)
+    @patch('os.chdir')
+    def test_cd_command_home_directory(self, mock_chdir, mock_isdir, mock_exists, mock_expanduser):
+        command = self.shell._find_command("cd").make()
+        command.execute([])
+        mock_expanduser.assert_called_once_with("~")
+        mock_chdir.assert_called_once_with("/mock/home")
 
 if __name__ == "__main__":
     unittest.main()

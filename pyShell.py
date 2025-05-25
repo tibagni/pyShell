@@ -4,7 +4,7 @@ import os
 import subprocess
 import readline  # type: ignore Keep this import to properly handle arrow keys in the input
 
-from typing import List, Tuple, Dict, Callable, Type
+from typing import List, Tuple, Dict, Type, Optional
 
 
 class CommandError(Exception):
@@ -96,6 +96,14 @@ class TypeCommand(BuiltinCommand):
             else:
                 print(f"{arg}: not found", file=sys.stderr)
 
+class PwdCommand(BuiltinCommand):
+    NAME = "pwd"
+
+    def __init__(self):
+        super().__init__(PwdCommand.NAME)
+
+    def execute(self, args: List[str]):
+        print(os.getcwd())
 
 class CommandFactory:
     def __init__(self, command_type: Type[Command], *args, **kwargs):
@@ -106,6 +114,34 @@ class CommandFactory:
     def make(self) -> Command:
         return self.command_type(*self.args, **self.kwargs)
 
+class CdCommand(BuiltinCommand):
+    NAME = "cd"
+
+    def __init__(self, shell: "PyShell"):
+        super().__init__(CdCommand.NAME)
+        self.shell = shell
+
+    def execute(self, args: List[str]):
+        if not args:
+            args = ["~"]
+
+        if len(args) > 1:
+            raise CommandError(f"too many arguments")
+
+        # Use expandpath to handle special cases like '~'
+        target_dir = os.path.expanduser(args[0])
+
+        if target_dir == "-":
+            if self.shell._last_dir:
+                target_dir = self.shell._last_dir
+        elif not os.path.exists(target_dir):
+            raise CommandError(f"{target_dir}: No such file or directory")
+        elif not os.path.isdir(target_dir):
+            raise CommandError(f"{target_dir}: Not a directory")
+
+        self.shell._last_dir = os.getcwd()
+        os.chdir(target_dir)
+
 
 class PyShell:
     def __init__(self):
@@ -114,7 +150,10 @@ class PyShell:
             EchoCommand.NAME: CommandFactory(EchoCommand),
             ExitCommand.NAME: CommandFactory(ExitCommand),
             TypeCommand.NAME: CommandFactory(TypeCommand, self),
+            PwdCommand.NAME: CommandFactory(PwdCommand),
+            CdCommand.NAME: CommandFactory(CdCommand, self)
         }
+        self._last_dir = os.getcwd()
 
     def _find_command(self, command_name: str) -> CommandFactory:
         # First check if the command is a built-in command
