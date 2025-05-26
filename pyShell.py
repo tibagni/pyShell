@@ -136,6 +136,29 @@ class CdCommand(BuiltinCommand):
         self.shell._last_dir = os.getcwd()
         os.chdir(target_dir)
 
+class HistoryCommand(BuiltinCommand):
+    NAME = "history"
+
+    def __init__(self):
+        super().__init__(HistoryCommand.NAME)
+
+    def execute(self, args: List[str]):
+        history_start = 0
+        history_end = readline.get_current_history_length() + 1
+
+        if len(args) > 1:
+            raise CommandError(f"too many arguments")
+
+        if args:
+            try:
+                history_start = max(0, history_end - int(args[0]))
+            except ValueError:
+                raise CommandError(f"{args[0]}: numeric argument required")
+
+        for i in range(history_start, history_end):
+            history_item = readline.get_history_item(i)
+            print(f"\t{i}  {history_item}", file=self.out_stream)
+
 class CommandFactory:
     def __init__(self, command_type: Type[Command], *args, **kwargs):
         self.command_type = command_type
@@ -154,7 +177,8 @@ class PyShell:
             ExitCommand.NAME: CommandFactory(ExitCommand),
             TypeCommand.NAME: CommandFactory(TypeCommand, self),
             PwdCommand.NAME: CommandFactory(PwdCommand),
-            CdCommand.NAME: CommandFactory(CdCommand, self)
+            CdCommand.NAME: CommandFactory(CdCommand, self),
+            HistoryCommand.NAME: CommandFactory(HistoryCommand),
         }
         self._last_dir = os.getcwd()
         self._cached_available_items = set()

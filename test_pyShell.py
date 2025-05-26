@@ -230,6 +230,49 @@ class TestPyShell(unittest.TestCase):
         expected = ['cmd3']
         self.assertEqual(result, expected)
 
+    @patch('readline.get_current_history_length', return_value=5)
+    @patch('readline.get_history_item', side_effect=lambda i: f"command{i}" if i <= 5 else None)
+    @patch('builtins.print')
+    def test_history_command_full_history(self, mock_print, mock_get_history_item, mock_get_history_length):
+        command = self.shell._find_command("history").make()
+        command.execute([])
+        mock_print.assert_has_calls([
+            unittest.mock.call("\t1  command1", file=ANY),
+            unittest.mock.call("\t2  command2", file=ANY),
+            unittest.mock.call("\t3  command3", file=ANY),
+            unittest.mock.call("\t4  command4", file=ANY),
+            unittest.mock.call("\t5  command5", file=ANY),
+        ], any_order=False)
+
+    @patch('readline.get_current_history_length', return_value=5)
+    @patch('readline.get_history_item', side_effect=lambda i: f"command{i}" if i <= 5 else None)
+    @patch('builtins.print')
+    def test_history_command_with_arg(self, mock_print, mock_get_history_item, mock_get_history_length):
+        command = self.shell._find_command("history").make()
+        command.execute(["3"])
+        mock_print.assert_has_calls([
+            unittest.mock.call("\t3  command3", file=ANY),
+            unittest.mock.call("\t4  command4", file=ANY),
+            unittest.mock.call("\t5  command5", file=ANY),
+        ], any_order=False)
+
+    @patch('readline.get_current_history_length', return_value=5)
+    @patch('readline.get_history_item', side_effect=lambda i: f"command{i}" if i <= 5 else None)
+    def test_history_command_invalid_arg(self, mock_get_history_item, mock_get_history_length):
+        command = self.shell._find_command("history").make()
+        with self.assertRaises(CommandError) as context:
+            command.execute(["invalid"])
+        self.assertEqual(str(context.exception), "invalid: numeric argument required")
+
+
+    @patch('readline.get_current_history_length', return_value=5)
+    @patch('readline.get_history_item', side_effect=lambda i: f"command{i}" if i <= 5 else None)
+    def test_history_command_too_many_args(self, mock_get_history_item, mock_get_history_length):
+        command = self.shell._find_command("history").make()
+        with self.assertRaises(CommandError) as context:
+            command.execute(["2", "3"])
+        self.assertEqual(str(context.exception), "too many arguments")
+
 
 if __name__ == "__main__":
     unittest.main()
