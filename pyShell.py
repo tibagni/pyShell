@@ -4,7 +4,7 @@ import os
 import subprocess
 import readline  # type: ignore Keep this import to properly handle arrow keys in the input
 
-from typing import List, Literal, TextIO, Tuple, Dict, Type, Optional, Final, final
+from typing import List, Literal, TextIO, Tuple, Dict, Type, Optional, Final
 
 FileMode = Literal["w", "a"]
 
@@ -53,7 +53,6 @@ class Command:
     def execute(self, args: List[str]):
         pass
 
-    @final
     def tear_down(self):
         if self.out_stream and self.out_stream != sys.stdout:
             self.out_stream.close()
@@ -66,6 +65,16 @@ class Command:
         if self.in_stream and self.in_stream != sys.stdin:
             self.in_stream.close()
             self.in_stream = sys.stdin
+
+class PipelineCommand(Command):
+    def __init__(self, commands: List[Tuple[Command, List[str]]]):
+        super().__init__("pipeline")
+        self.commands = commands
+
+    def tear_down(self):
+        super().tear_down()
+        for command, _ in self.commands:
+            command.tear_down()
 
 
 class CommandNotFound(Command):
@@ -578,25 +587,28 @@ class PyShell:
         input_parser = InputParser(user_input)
         user_inputs = input_parser.parse()
 
-        # TODO For now we only handle the first user input, but we should handle pipelines
-        ui = user_inputs[0]
+        commands: List[Tuple[Command, List[str]]] = []
+        for ui in user_inputs:
+            cmd_factory = self._find_command(ui.input_parts[0])
+            cmd_args = ui.input_parts[1:] if len(ui.input_parts) > 1 else []
 
-        command_factory = self._find_command(ui.input_parts[0])
-        command_args = ui.input_parts[1:] if len(ui.input_parts) > 1 else []
+            out_stream = None
+            err_stream = None
+            if ui.output_file:
+                filename, mode = ui.output_file
+                out_stream = open(filename, mode)
 
-        out_stream = None
-        err_stream = None
-        if ui.output_file:
-            filename, mode = ui.output_file
-            out_stream = open(filename, mode)
+            if ui.error_file:
+                filename, mode = ui.error_file
+                err_stream = open(filename, mode)
 
-        if ui.error_file:
-            filename, mode = ui.error_file
-            err_stream = open(filename, mode)
+            cmd = cmd_factory.make(out_stream=out_stream, err_stream=err_stream)
+            commands.append((cmd, cmd_args))
 
-        command = command_factory.make(out_stream=out_stream, err_stream=err_stream)
+        if len(commands) > 1:
+            return PipelineCommand(commands), []
 
-        return command, command_args
+        return commands[0]
 
 
 def main():

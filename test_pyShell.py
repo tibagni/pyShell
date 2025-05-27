@@ -4,7 +4,15 @@ import sys
 import os
 
 from unittest.mock import patch, mock_open, ANY
-from pyShell import PyShell, CommandError, CommandNotFound, UserInput, InputParser
+from pyShell import (
+    PyShell,
+    CommandError,
+    CommandNotFound,
+    UserInput,
+    InputParser,
+    EchoCommand,
+    PipelineCommand
+)
 
 
 class TestPyShell(unittest.TestCase):
@@ -719,14 +727,14 @@ class TestPyShell(unittest.TestCase):
             InputParser("command1 | command2").parse(),
             [
                 UserInput(input_parts=["command1"], output_file=None, error_file=None),
-                UserInput(input_parts=["command2"], output_file=None, error_file=None)
+                UserInput(input_parts=["command2"], output_file=None, error_file=None),
             ],
         )
         self.assertEqual(
             InputParser("command1|command2").parse(),
             [
                 UserInput(input_parts=["command1"], output_file=None, error_file=None),
-                UserInput(input_parts=["command2"], output_file=None, error_file=None)
+                UserInput(input_parts=["command2"], output_file=None, error_file=None),
             ],
         )
 
@@ -746,7 +754,9 @@ class TestPyShell(unittest.TestCase):
             InputParser("command1 | command2 > tmp").parse(),
             [
                 UserInput(input_parts=["command1"], output_file=None, error_file=None),
-                UserInput(input_parts=["command2"], output_file=("tmp", "w"), error_file=None),
+                UserInput(
+                    input_parts=["command2"], output_file=("tmp", "w"), error_file=None
+                ),
             ],
         )
 
@@ -773,6 +783,29 @@ class TestPyShell(unittest.TestCase):
         mock_print.assert_called_once_with(
             "invalidCommand: not found", file=mock_err_stream
         )
+
+    @patch("pyShell.InputParser")
+    def test_eval_normal_command(self, mock_input_parser):
+        mock_input_parser.return_value.parse.return_value = [
+            UserInput(input_parts=["echo", "Hello, World!"])
+        ]
+
+        command, args = self.shell._eval("echo Hello, World!")
+
+        self.assertTrue(isinstance(command, EchoCommand))
+        self.assertEqual(args, ["Hello, World!"])
+
+    @patch("pyShell.InputParser")
+    def test_eval_pipeline_command(self, mock_input_parser):
+        mock_input_parser.return_value.parse.return_value = [
+            UserInput(input_parts=["echo", "Hello, World!"]),
+            UserInput(input_parts=["wc"])
+        ]
+
+        command, args = self.shell._eval("echo Hello, World!")
+
+        self.assertTrue(isinstance(command, PipelineCommand))
+        self.assertEqual(args, [])
 
 
 if __name__ == "__main__":
