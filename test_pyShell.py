@@ -714,6 +714,42 @@ class TestPyShell(unittest.TestCase):
             ],
         )
 
+    def test_parse_input_pipe_2_commands(self):
+        self.assertEqual(
+            InputParser("command1 | command2").parse(),
+            [
+                UserInput(input_parts=["command1"], output_file=None, error_file=None),
+                UserInput(input_parts=["command2"], output_file=None, error_file=None)
+            ],
+        )
+        self.assertEqual(
+            InputParser("command1|command2").parse(),
+            [
+                UserInput(input_parts=["command1"], output_file=None, error_file=None),
+                UserInput(input_parts=["command2"], output_file=None, error_file=None)
+            ],
+        )
+
+    def test_parse_input_pipe_multiple_commands(self):
+        self.assertEqual(
+            InputParser("command1 | command2 | command3 | command4").parse(),
+            [
+                UserInput(input_parts=["command1"], output_file=None, error_file=None),
+                UserInput(input_parts=["command2"], output_file=None, error_file=None),
+                UserInput(input_parts=["command3"], output_file=None, error_file=None),
+                UserInput(input_parts=["command4"], output_file=None, error_file=None),
+            ],
+        )
+
+    def test_parse_input_pipe_with_redirect(self):
+        self.assertEqual(
+            InputParser("command1 | command2 > tmp").parse(),
+            [
+                UserInput(input_parts=["command1"], output_file=None, error_file=None),
+                UserInput(input_parts=["command2"], output_file=("tmp", "w"), error_file=None),
+            ],
+        )
+
     @patch("builtins.open", new_callable=mock_open)
     @patch("builtins.print")
     def test_command_redirect_output(self, mock_print, mock_open_file):

@@ -276,10 +276,16 @@ class InputParser:
         # Call the current state handler one last time to handle the last part
         self._execute_current_state_handler(is_escaped, len(self.user_input))
 
+        self._add_to_pipeline()
+        return self.pipeline
+
+    def _add_to_pipeline(self):
         self.pipeline.append(
             UserInput(self.current_parts, self.current_out_file, self.current_err_file)
         )
-        return self.pipeline
+        self.current_parts = []
+        self.current_out_file = None
+        self.current_err_file = None
 
     def _execute_current_state_handler(self, is_escaped: bool, position: int):
         current_state = self.states[self.state_stack[-1]]
@@ -332,6 +338,11 @@ class InputParser:
 
         if self.user_input[position] == ">" and not is_escaped:
             self._go_to_state("inter_redirect")
+            return
+
+        if self.user_input[position] == "|" and not is_escaped:
+            self._save_current_part()
+            self._add_to_pipeline()
             return
 
         self.current_part += self.user_input[position]
