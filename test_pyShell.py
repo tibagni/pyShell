@@ -807,6 +807,7 @@ class TestPyShell(unittest.TestCase):
         self.assertTrue(isinstance(command, PipelineCommand))
         self.assertEqual(args, [])
 
+# TODO write tests for the pipe command
 
 if __name__ == "__main__":
     unittest.main()

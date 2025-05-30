@@ -66,10 +66,61 @@ class Command:
             self.in_stream.close()
             self.in_stream = sys.stdin
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(name={self.name})"
+
 class PipelineCommand(Command):
     def __init__(self, commands: List[Tuple[Command, List[str]]]):
-        super().__init__("pipeline")
+        super().__init__(f"pipeline: {commands}")
         self.commands = commands
+
+    def execute(self, args: List[str]):
+        previous_pipe = None
+        pids = []
+        for i, (cmd, cmd_params) in enumerate(self.commands):
+            current_pipe = None
+
+            # Check if we need to create a pipe for the next command
+            if i < len(self.commands) - 1:
+                current_pipe = os.pipe()
+
+            cmd_pid = os.fork()
+            if cmd_pid == 0:
+                # Child process
+                # The pipe is a tuple (read_fd, write_fd)
+
+                if current_pipe:
+                    # If there is a current pipe, there is a next command, we only need the write end
+                    os.close(current_pipe[0])
+                    cmd.out_stream = os.fdopen(current_pipe[1], "w")
+
+                if previous_pipe:
+                    # We only need the read end of the previous pipe (if any)
+                    os.close(previous_pipe[1])
+                    cmd.in_stream = os.fdopen(previous_pipe[0], "r")
+
+                cmd.execute(cmd_params)
+                cmd.tear_down()
+
+                os._exit(0)
+                return
+
+            # Parent process
+            if previous_pipe:
+                os.close(previous_pipe[0])
+                os.close(previous_pipe[1])
+
+            previous_pipe = current_pipe
+            pids.append(cmd_pid)
+
+        if previous_pipe:
+            raise CommandError("There is a previous pipe that was not closed")
+
+        for cmd_pid in pids:
+            # Wait for the child processes to finish
+            # We need to wait for all the child processes to avoid zombie processes
+            # TODO handle the exit status of the child processes
+            os.waitpid(cmd_pid, 0)
 
     def tear_down(self):
         super().tear_down()
