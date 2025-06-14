@@ -2,7 +2,7 @@
 import sys
 import os
 import subprocess
-import readline  # type: ignore Keep this import to properly handle arrow keys in the input
+import readline
 
 from typing import List, Literal, TextIO, Tuple, Dict, Type, Optional, Final
 
