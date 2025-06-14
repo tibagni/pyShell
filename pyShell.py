@@ -302,6 +302,7 @@ class InputParser:
             "append_redirect": self._append_redirect_state_handler,
             "error_redirect": self._error_redirect_state_handler,
             "out_redirect": self._out_redirect_state_handler,
+            "env_variable": self._env_variable_state_handler,
         }
 
         self.user_input = user_input
@@ -399,11 +400,17 @@ class InputParser:
         if self.user_input[position] == ">" and not is_escaped:
             self._go_to_state("inter_redirect")
             return
+        
+        if self.user_input[position] == "$" and not is_escaped:
+            self._save_current_part()
+            self._go_to_state("env_variable")
+            return
 
         if self.user_input[position] == "|" and not is_escaped:
             self._save_current_part()
             self._add_to_pipeline()
             return
+
 
         self.current_part += self.user_input[position]
 
@@ -508,6 +515,20 @@ class InputParser:
             return
 
         self.current_part += self.user_input[position]
+
+    def _env_variable_state_handler(self, is_escaped: bool, position: int):
+        if position == len(self.user_input) or self.user_input[position] == " ":
+            self._save_current_part()
+            last_part = self.current_parts.pop().strip()
+            if last_part in os.environ:
+                self.current_part = os.environ[last_part]
+                self._save_current_part()
+            
+            self._pop_state()
+            return
+        
+        self.current_part += self.user_input[position]
+        
 
 
 class PyShell:

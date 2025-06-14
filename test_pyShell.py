@@ -809,5 +809,21 @@ class TestPyShell(unittest.TestCase):
 
 # TODO write tests for the pipe command
 
+    @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
+    def test_parse_input_env_var_expansion(self):
+        result = InputParser("echo $HOME").parse()
+        self.assertEqual(
+            result,
+            [UserInput(input_parts=["echo", "/mock/home"], output_file=None, error_file=None)]
+        )
+
+    @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
+    def test_parse_input_env_var_expansion_with_more_text(self):
+        result = InputParser("echo $HOME aaa").parse()
+        self.assertEqual(
+            result,
+            [UserInput(input_parts=["echo", "/mock/home", "aaa"], output_file=None, error_file=None)]
+        )
+
 if __name__ == "__main__":
     unittest.main()
