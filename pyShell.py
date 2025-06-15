@@ -168,8 +168,9 @@ class EchoCommand(BuiltinCommand):
 class ExitCommand(BuiltinCommand):
     NAME = "exit"
 
-    def __init__(self):
+    def __init__(self, shell: "PyShell"):
         super().__init__(ExitCommand.NAME)
+        self.shell = shell
 
     def execute(self, args: List[str]):
         exit_code = 0
@@ -179,7 +180,7 @@ class ExitCommand(BuiltinCommand):
             except ValueError:
                 raise CommandError(f"{args[0]}: numeric argument required")
 
-        sys.exit(exit_code)
+        self.shell.exit(exit_code)
 
 
 class TypeCommand(BuiltinCommand):
@@ -548,7 +549,7 @@ class PyShell:
         self.prompt = "$"
         self.builtin_commands_factory: Dict[str, CommandFactory] = {
             EchoCommand.NAME: CommandFactory(EchoCommand),
-            ExitCommand.NAME: CommandFactory(ExitCommand),
+            ExitCommand.NAME: CommandFactory(ExitCommand, self),
             TypeCommand.NAME: CommandFactory(TypeCommand, self),
             PwdCommand.NAME: CommandFactory(PwdCommand),
             CdCommand.NAME: CommandFactory(CdCommand, self),
@@ -556,6 +557,20 @@ class PyShell:
         }
         self._last_dir = os.getcwd()
         self._cached_available_items = set()
+        self.history_session_start = 0
+        self._on_load()
+
+    def _on_load(self):
+        if "HISTFILE" in os.environ:
+            hist_file = os.environ["HISTFILE"]
+            readline.read_history_file(hist_file)
+            self.history_session_start = readline.get_current_history_length()
+
+    def _on_unload(self):
+        if "HISTFILE" in os.environ:
+            hist_file = os.environ["HISTFILE"]
+            nelements = readline.get_current_history_length() - self.history_session_start
+            readline.append_history_file(nelements, hist_file)
 
     def _find_command(self, command_name: str) -> CommandFactory:
         # First check if the command is a built-in command
@@ -647,6 +662,10 @@ class PyShell:
             return suggestions[state] + (" " if add_trailing_space else "")
 
         return None
+
+    def exit(self, exit_code):
+        self._on_unload()
+        sys.exit(exit_code)
 
     # This is the "Read-Eval-Print Loop" (REPL) method
     def repl(self):
