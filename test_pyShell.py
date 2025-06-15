@@ -383,6 +383,64 @@ class TestPyShell(unittest.TestCase):
             command.execute(["2", "3"])
         self.assertEqual(str(context.exception), "too many arguments")
 
+    @patch("readline.read_history_file")
+    def test_history_read_flag(self, mock_read_history_file):
+        command = self.shell._find_command("history").make()
+        command.execute(["-r", "histfile.txt"])
+        mock_read_history_file.assert_called_once_with("histfile.txt")
+
+    @patch("readline.write_history_file")
+    def test_history_write_flag(self, mock_write_history_file):
+        command = self.shell._find_command("history").make()
+        command.execute(["-w", "histfile.txt"])
+        mock_write_history_file.assert_called_once_with("histfile.txt")
+
+    @patch("readline.append_history_file")
+    @patch("readline.get_current_history_length", return_value=10)
+    def test_history_append_flag(self, mock_get_history_length, mock_append_history_file):
+        self.shell.last_apended_history_item = 0
+        command = self.shell._find_command("history").make()
+        command.execute(["-a", "histfile.txt"])
+        mock_append_history_file.assert_called_once_with(10, "histfile.txt")
+        # Also make sure the 'last_apended_history_item' is updated with the
+        # value returned from readline
+        self.assertEqual(10, self.shell.last_apended_history_item)
+
+    @patch("readline.append_history_file")
+    @patch("readline.get_current_history_length", return_value=10)
+    def test_history_append_flag_second_time(self, mock_get_history_length, mock_append_history_file):
+        self.shell.last_apended_history_item = 5
+        command = self.shell._find_command("history").make()
+        command.execute(["-a", "histfile.txt"])
+        mock_append_history_file.assert_called_once_with(5, "histfile.txt")
+        # Also make sure the 'last_apended_history_item' is updated with the
+        # value returned from readline
+        self.assertEqual(10, self.shell.last_apended_history_item)
+
+    def test_history_read_flag_without_filename(self):
+        command = self.shell._find_command("history").make()
+        with self.assertRaises(CommandError) as cm:
+            command.execute(["-r"])
+        self.assertEqual(str(cm.exception), "-r: file name required")
+
+    def test_history_write_flag_without_filename(self):
+        command = self.shell._find_command("history").make()
+        with self.assertRaises(CommandError) as cm:
+            command.execute(["-w"])
+        self.assertEqual(str(cm.exception), "-w: file name required")
+
+    def test_history_append_flag_without_filename(self):
+        command = self.shell._find_command("history").make()
+        with self.assertRaises(CommandError) as cm:
+            command.execute(["-a"])
+        self.assertEqual(str(cm.exception), "-a: file name required")
+
+    def test_history_unknown_flag(self):
+        command = self.shell._find_command("history").make()
+        with self.assertRaises(CommandError) as cm:
+            command.execute(["-g"])
+        self.assertEqual(str(cm.exception), "-g: unknown argument")
+
     def test_parse_input_simple(self):
         self.assertEqual(
             InputParser("exit").parse(),
@@ -927,59 +985,6 @@ class TestPyShell(unittest.TestCase):
         command, args = self.shell._eval("ABC=5")
         command.execute(args)
         self.assertEqual(os.environ.get("ABC"), "5")
-
-    @patch("readline.read_history_file")
-    def test_history_read_flag(self, mock_read_history_file):
-        command = self.shell._find_command("history").make()
-        command.execute(["-r", "histfile.txt"])
-        mock_read_history_file.assert_called_once_with("histfile.txt")
-
-    @patch("readline.write_history_file")
-    def test_history_write_flag(self, mock_write_history_file):
-        command = self.shell._find_command("history").make()
-        command.execute(["-w", "histfile.txt"])
-        mock_write_history_file.assert_called_once_with("histfile.txt")
-
-    @patch("readline.append_history_file")
-    @patch("readline.get_current_history_length", return_value=10)
-    def test_history_append_flag(self, mock_get_history_length, mock_append_history_file):
-        self.shell.last_apended_history_item = 0
-        command = self.shell._find_command("history").make()
-        command.execute(["-a", "histfile.txt"])
-        mock_append_history_file.assert_called_once_with(10, "histfile.txt")
-        # Also make sure the 'last_apended_history_item' is updated with the
-        # value returned from readline
-        self.assertEqual(10, self.shell.last_apended_history_item)
-
-    @patch("readline.append_history_file")
-    @patch("readline.get_current_history_length", return_value=10)
-    def test_history_append_flag_second_time(self, mock_get_history_length, mock_append_history_file):
-        self.shell.last_apended_history_item = 5
-        command = self.shell._find_command("history").make()
-        command.execute(["-a", "histfile.txt"])
-        mock_append_history_file.assert_called_once_with(5, "histfile.txt")
-        # Also make sure the 'last_apended_history_item' is updated with the
-        # value returned from readline
-        self.assertEqual(10, self.shell.last_apended_history_item)
-
-
-    def test_history_read_flag_without_filename(self):
-        command = self.shell._find_command("history").make()
-        with self.assertRaises(CommandError) as cm:
-            command.execute(["-r"])
-        self.assertEqual(str(cm.exception), "-r: file name required")
-
-    def test_history_write_flag_without_filename(self):
-        command = self.shell._find_command("history").make()
-        with self.assertRaises(CommandError) as cm:
-            command.execute(["-w"])
-        self.assertEqual(str(cm.exception), "-w: file name required")
-
-    def test_history_append_flag_without_filename(self):
-        command = self.shell._find_command("history").make()
-        with self.assertRaises(CommandError) as cm:
-            command.execute(["-a"])
-        self.assertEqual(str(cm.exception), "-a: file name required")
 
 if __name__ == "__main__":
     unittest.main()

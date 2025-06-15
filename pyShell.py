@@ -291,6 +291,8 @@ class HistoryCommand(BuiltinCommand):
                     readline.append_history_file(nelements, filename)
                     self.shell.last_apended_history_item = readline.get_current_history_length()
                     return
+            elif args[0].startswith("-"):
+                raise CommandError(f"{args[0]}: unknown argument")
 
             if len(args) > 1:
                 raise CommandError(f"too many arguments")
