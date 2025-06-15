@@ -256,17 +256,45 @@ class CdCommand(BuiltinCommand):
 class HistoryCommand(BuiltinCommand):
     NAME = "history"
 
-    def __init__(self):
+    def __init__(self, shell: "PyShell"):
         super().__init__(HistoryCommand.NAME)
+        self.shell = shell
 
     def execute(self, args: List[str]):
         history_start = 0
         history_end = readline.get_current_history_length() + 1
-
-        if len(args) > 1:
-            raise CommandError(f"too many arguments")
+        supported_flags = ["-r", "-w", "-a"]
 
         if args:
+            if args[0] in supported_flags:
+                if len(args) == 1:
+                    raise CommandError(f"{args[0]}: file name required")
+                
+                if len(args) > 2:
+                    raise CommandError(f"too many arguments")
+                
+                flag = args[0]
+                filename = args[1]
+
+                if flag == "-r":
+                    readline.read_history_file(filename)
+                    return
+                
+                if flag == "-w":
+                    readline.write_history_file(filename)
+                    return
+                
+                if flag == "-a":
+                    nelements = (
+                        readline.get_current_history_length() - self.shell.last_apended_history_item
+                    )
+                    readline.append_history_file(nelements, filename)
+                    self.shell.last_apended_history_item = readline.get_current_history_length()
+                    return
+
+            if len(args) > 1:
+                raise CommandError(f"too many arguments")
+
             try:
                 history_start = max(0, history_end - int(args[0]))
             except ValueError:
@@ -560,11 +588,12 @@ class PyShell:
             TypeCommand.NAME: CommandFactory(TypeCommand, self),
             PwdCommand.NAME: CommandFactory(PwdCommand),
             CdCommand.NAME: CommandFactory(CdCommand, self),
-            HistoryCommand.NAME: CommandFactory(HistoryCommand),
+            HistoryCommand.NAME: CommandFactory(HistoryCommand, self),
         }
         self._last_dir = os.getcwd()
         self._cached_available_items = set()
         self.history_session_start = 0
+        self.last_apended_history_item = 0
         self._on_load()
 
     def _on_load(self):
