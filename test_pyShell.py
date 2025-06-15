@@ -11,7 +11,8 @@ from pyShell import (
     UserInput,
     InputParser,
     EchoCommand,
-    PipelineCommand
+    PipelineCommand,
+    AssignmentCommand
 )
 
 
@@ -911,6 +912,21 @@ class TestPyShell(unittest.TestCase):
             result,
             [UserInput(input_parts=["echo", "$HOME"], output_file=None, error_file=None)]
         )
+
+    def test_eval_variable_assignment_returns_assignment_command(self):
+        command, args = self.shell._eval("ABC=5")
+        self.assertIsInstance(command, AssignmentCommand)
+
+        if isinstance(command, AssignmentCommand):
+            self.assertEqual(command.var_name, "ABC")
+            self.assertEqual(command.val, "5")
+        self.assertEqual(args, [])
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_variable_assignment_sets_env(self):
+        command, args = self.shell._eval("ABC=5")
+        command.execute(args)
+        self.assertEqual(os.environ.get("ABC"), "5")
 
 if __name__ == "__main__":
     unittest.main()

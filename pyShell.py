@@ -148,6 +148,15 @@ class ExecutableCommand(Command):
             cmd, stdout=self.out_stream, stderr=self.err_stream, stdin=self.in_stream
         )
 
+class AssignmentCommand(Command):
+    def __init__(self, var_name: str, val: str):
+        super().__init__("")
+        self.var_name = var_name
+        self.val = val
+
+    def execute(self, args: List[str]):
+        os.environ[self.var_name] = self.val
+
 
 class BuiltinCommand(Command):
     def __init__(self, name: str):
@@ -266,7 +275,6 @@ class HistoryCommand(BuiltinCommand):
         for i in range(history_start, history_end):
             history_item = readline.get_history_item(i)
             print(f"\t{i}  {history_item}", file=self.out_stream)
-
 
 class CommandFactory:
     def __init__(self, command_type: Type[Command], *args, **kwargs):
@@ -413,7 +421,6 @@ class InputParser:
             self._save_current_part()
             self._add_to_pipeline()
             return
-
 
         self.current_part += self.user_input[position]
 
@@ -692,6 +699,14 @@ class PyShell:
 
         commands: List[Tuple[Command, List[str]]] = []
         for ui in user_inputs:
+            # Keep it simple. If the first part of the user input is a variable assignment
+            # just ignore the rest. Let's handle only the assignment
+            if "=" in ui.input_parts[0]:
+                assignment = ui.input_parts[0].split("=")
+                if len(assignment) == 2:
+                    assignment_command = AssignmentCommand(assignment[0], assignment[1])
+                    return assignment_command, []
+
             cmd_factory = self._find_command(ui.input_parts[0])
             cmd_args = ui.input_parts[1:] if len(ui.input_parts) > 1 else []
 
