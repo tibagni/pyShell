@@ -818,7 +818,7 @@ class TestPyShell(unittest.TestCase):
         )
 
     @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
-    def test_parse_input_env_var_expansion_with_text_after(self):
+    def test_parse_input_env_var_expansion_text_after(self):
         result = InputParser("echo $HOME aaa").parse()
         self.assertEqual(
             result,
@@ -826,7 +826,7 @@ class TestPyShell(unittest.TestCase):
         )
 
     @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
-    def test_parse_input_env_var_expansion_with_text_before_with_space(self):
+    def test_parse_input_env_var_expansion_text_before_space(self):
         result = InputParser("echo aa $HOME").parse()
         self.assertEqual(
             result,
@@ -834,11 +834,43 @@ class TestPyShell(unittest.TestCase):
         )
 
     @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
-    def test_parse_input_env_var_expansion_with_text_before_without_space(self):
+    def test_parse_input_env_var_expansion_text_before_no_space(self):
         result = InputParser("echo aa$HOME").parse()
         self.assertEqual(
             result,
             [UserInput(input_parts=["echo", "aa/mock/home"], output_file=None, error_file=None)]
+        )
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_parse_input_env_var_expansion_not_found(self):
+        result = InputParser("echo $HOME").parse()
+        self.assertEqual(
+            result,
+            [UserInput(input_parts=["echo"], output_file=None, error_file=None)]
+        )
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_parse_input_env_var_expansion_not_found_text_before_space(self):
+        result = InputParser("echo aa $HOME").parse()
+        self.assertEqual(
+            result,
+            [UserInput(input_parts=["echo", "aa"], output_file=None, error_file=None)]
+        )
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_parse_input_env_var_expansion_not_found_text_before_no_space(self):
+        result = InputParser("echo aa$HOME").parse()
+        self.assertEqual(
+            result,
+            [UserInput(input_parts=["echo", "aa"], output_file=None, error_file=None)]
+        )
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_parse_input_env_var_expansion_not_found_text_after(self):
+        result = InputParser("echo $HOME aa").parse()
+        self.assertEqual(
+            result,
+            [UserInput(input_parts=["echo", "aa"], output_file=None, error_file=None)]
         )
 
 if __name__ == "__main__":
