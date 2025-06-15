@@ -449,8 +449,10 @@ class InputParser:
             self._pop_state()
             self._save_current_part()
             return
-
-        # TODO handle env viarables here as well
+        
+        if self.user_input[position] == "$" and not is_escaped:
+            self._go_to_state("env_variable")
+            return
 
         self.current_part += self.user_input[position]
 
@@ -523,7 +525,8 @@ class InputParser:
     def _env_variable_state_handler(self, is_escaped: bool, position: int):
         # We check for the end before the last char because we need the previous state
         # to handle the space.
-        found_end = ((position + 1 < len(self.user_input) and self.user_input[position + 1] == " ")
+        end_chars = [" ", '"']
+        found_end = ((position + 1 < len(self.user_input) and self.user_input[position + 1] in end_chars)
                      or position == len(self.user_input) - 1)
 
         if found_end:
@@ -539,7 +542,6 @@ class InputParser:
             return
         
         self.env_variable += self.user_input[position]
-        
 
 
 class PyShell:

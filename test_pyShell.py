@@ -873,5 +873,46 @@ class TestPyShell(unittest.TestCase):
             [UserInput(input_parts=["echo", "aa"], output_file=None, error_file=None)]
         )
 
+    @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
+    def test_parse_input_env_var_expansion_dquotes(self):
+        result = InputParser('echo "$HOME"').parse()
+        self.assertEqual(
+            result,
+            [UserInput(input_parts=["echo", "/mock/home"], output_file=None, error_file=None)]
+        )
+
+    @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
+    def test_parse_input_env_var_expansion_text_after_dquotes(self):
+        result = InputParser('echo "$HOME aaa"').parse()
+        self.assertEqual(
+            result,
+            [UserInput(input_parts=["echo", "/mock/home aaa"], output_file=None, error_file=None)]
+        )
+
+    @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
+    def test_parse_input_env_var_expansion_text_before_space_dquotes(self):
+        result = InputParser('echo "aa $HOME"').parse()
+        self.assertEqual(
+            result,
+            [UserInput(input_parts=["echo", "aa /mock/home"], output_file=None, error_file=None)]
+        )
+
+    @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
+    def test_parse_input_env_var_expansion_text_before_no_space_dquotes(self):
+        result = InputParser('echo "aa$HOME"').parse()
+        self.assertEqual(
+            result,
+            [UserInput(input_parts=["echo", "aa/mock/home"], output_file=None, error_file=None)]
+        )
+
+    @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
+    def test_parse_input_env_var_expansion_squotes(self):
+        # Inside single quotes string, $ should not expand!
+        result = InputParser("echo '$HOME'").parse()
+        self.assertEqual(
+            result,
+            [UserInput(input_parts=["echo", "$HOME"], output_file=None, error_file=None)]
+        )
+
 if __name__ == "__main__":
     unittest.main()
