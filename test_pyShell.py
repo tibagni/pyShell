@@ -807,8 +807,6 @@ class TestPyShell(unittest.TestCase):
         self.assertTrue(isinstance(command, PipelineCommand))
         self.assertEqual(args, [])
 
-# TODO write tests for the pipe command
-
     @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
     def test_parse_input_env_var_expansion(self):
         result = InputParser("echo $HOME").parse()

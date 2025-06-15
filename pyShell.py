@@ -417,9 +417,7 @@ class InputParser:
         self.current_part += self.user_input[position]
 
     def _single_quote_state_handler(self, is_escaped: bool, position: int):
-        # Avoid crash on malformed input
         if position == len(self.user_input):
-            self._save_current_part()
             return
 
         if self.user_input[position] == "'" and not is_escaped:
@@ -430,9 +428,7 @@ class InputParser:
         self.current_part += self.user_input[position]
 
     def _double_quote_state_handler(self, is_escaped: bool, position: int):
-        # Avoid crash on malformed input
         if position == len(self.user_input):
-            self._save_current_part()
             return
 
         if is_escaped:
@@ -524,10 +520,13 @@ class InputParser:
 
     def _env_variable_state_handler(self, is_escaped: bool, position: int):
         # We check for the end before the last char because we need the previous state
-        # to handle the space.
-        end_chars = [" ", '"']
-        found_end = ((position + 1 < len(self.user_input) and self.user_input[position + 1] in end_chars)
-                     or position == len(self.user_input) - 1)
+        # to handle the next char (or EOL).
+        end_chars = [" ", '"'] # variable finishes after a space, double quotes or EOL
+        found_end = (
+            (position + 1 < len(self.user_input) and self.user_input[position + 1] in end_chars)
+            or
+            (position == len(self.user_input) - 1)
+        )
 
         if found_end:
             # Since we check the before the last char, make sure to add it to the variable name
