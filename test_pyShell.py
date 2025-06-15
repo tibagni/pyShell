@@ -818,11 +818,27 @@ class TestPyShell(unittest.TestCase):
         )
 
     @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
-    def test_parse_input_env_var_expansion_with_more_text(self):
+    def test_parse_input_env_var_expansion_with_text_after(self):
         result = InputParser("echo $HOME aaa").parse()
         self.assertEqual(
             result,
             [UserInput(input_parts=["echo", "/mock/home", "aaa"], output_file=None, error_file=None)]
+        )
+
+    @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
+    def test_parse_input_env_var_expansion_with_text_before_with_space(self):
+        result = InputParser("echo aa $HOME").parse()
+        self.assertEqual(
+            result,
+            [UserInput(input_parts=["echo", "aa", "/mock/home"], output_file=None, error_file=None)]
+        )
+
+    @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
+    def test_parse_input_env_var_expansion_with_text_before_without_space(self):
+        result = InputParser("echo aa$HOME").parse()
+        self.assertEqual(
+            result,
+            [UserInput(input_parts=["echo", "aa/mock/home"], output_file=None, error_file=None)]
         )
 
 if __name__ == "__main__":

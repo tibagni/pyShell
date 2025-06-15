@@ -308,6 +308,7 @@ class InputParser:
         self.user_input = user_input
         self.state_stack = ["default"]
 
+        self.env_variable = ""
         self.current_part = ""
         self.current_parts: List[str] = []
         self.current_out_file: Optional[Tuple[str, FileMode]] = None
@@ -402,7 +403,8 @@ class InputParser:
             return
         
         if self.user_input[position] == "$" and not is_escaped:
-            self._save_current_part()
+            if self.user_input[position -1] == " ":
+                self._save_current_part()
             self._go_to_state("env_variable")
             return
 
@@ -447,6 +449,8 @@ class InputParser:
             self._pop_state()
             self._save_current_part()
             return
+
+        # TODO handle env viarables here as well
 
         self.current_part += self.user_input[position]
 
@@ -517,17 +521,24 @@ class InputParser:
         self.current_part += self.user_input[position]
 
     def _env_variable_state_handler(self, is_escaped: bool, position: int):
-        if position == len(self.user_input) or self.user_input[position] == " ":
-            self._save_current_part()
-            last_part = self.current_parts.pop().strip()
-            if last_part in os.environ:
-                self.current_part = os.environ[last_part]
-                self._save_current_part()
-            
+        # We check for the end before the last char because we need the previous state
+        # to handle the space.
+        found_end = ((position + 1 < len(self.user_input) and self.user_input[position + 1] == " ")
+                     or position == len(self.user_input) - 1)
+
+        if found_end:
+            # Since we check the before the last char, make sure to add it to the variable name
+            self.env_variable += self.user_input[position]
+            expanded_variable = ""
+            if self.env_variable in os.environ:
+                expanded_variable = os.environ[self.env_variable]
+
+            self.current_part += expanded_variable
+            self.env_variable = ""
             self._pop_state()
             return
         
-        self.current_part += self.user_input[position]
+        self.env_variable += self.user_input[position]
         
 
 
