@@ -1,0 +1,2 @@
+litellm
+pyreadline; platform_system == "Windows"

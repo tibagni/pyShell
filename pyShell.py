@@ -3,11 +3,12 @@ import sys
 import os
 import subprocess
 import readline
+import json
 
+from litellm import completion
 from typing import List, Literal, TextIO, Tuple, Dict, Type, Optional, Final
 
 FileMode = Literal["w", "a"]
-
 
 class CommandError(Exception):
     def __init__(self, message: str):
@@ -68,6 +69,7 @@ class Command:
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name})"
+
 
 class PipelineCommand(Command):
     def __init__(self, commands: List[Tuple[Command, List[str]]]):
@@ -148,6 +150,7 @@ class ExecutableCommand(Command):
             cmd, stdout=self.out_stream, stderr=self.err_stream, stdin=self.in_stream
         )
 
+
 class AssignmentCommand(Command):
     def __init__(self, var_name: str, val: str):
         super().__init__("")
@@ -205,7 +208,9 @@ class TypeCommand(BuiltinCommand):
 
         for arg in args:
             command_factory = self.shell._find_command(arg)
-            if issubclass(command_factory.command_type, BuiltinCommand):
+            if issubclass(command_factory.command_type, AICommand):
+                print(f"{arg} is an AI builtin", file=self.out_stream)
+            elif issubclass(command_factory.command_type, BuiltinCommand):
                 print(f"{arg} is a shell builtin", file=self.out_stream)
             elif issubclass(command_factory.command_type, ExecutableCommand):
                 # For executable commands, the first argument of the factory is the command path
@@ -269,27 +274,30 @@ class HistoryCommand(BuiltinCommand):
             if args[0] in supported_flags:
                 if len(args) == 1:
                     raise CommandError(f"{args[0]}: file name required")
-                
+
                 if len(args) > 2:
                     raise CommandError(f"too many arguments")
-                
+
                 flag = args[0]
                 filename = args[1]
 
                 if flag == "-r":
                     readline.read_history_file(filename)
                     return
-                
+
                 if flag == "-w":
                     readline.write_history_file(filename)
                     return
-                
+
                 if flag == "-a":
                     nelements = (
-                        readline.get_current_history_length() - self.shell.last_apended_history_item
+                        readline.get_current_history_length()
+                        - self.shell.last_apended_history_item
                     )
                     readline.append_history_file(nelements, filename)
-                    self.shell.last_apended_history_item = readline.get_current_history_length()
+                    self.shell.last_apended_history_item = (
+                        readline.get_current_history_length()
+                    )
                     return
             elif args[0].startswith("-"):
                 raise CommandError(f"{args[0]}: unknown argument")
@@ -305,6 +313,167 @@ class HistoryCommand(BuiltinCommand):
         for i in range(history_start, history_end):
             history_item = readline.get_history_item(i)
             print(f"\t{i}  {history_item}", file=self.out_stream)
+
+
+# TODO: Implement the AI commands: "explain" and "suggest"
+class AICommand(BuiltinCommand):
+    def __init__(self, name: str, shell: "PyShell"):
+        super().__init__(name)
+        self.memory = []
+        self.shell = shell
+
+    def add_to_memory(self, message: Dict):
+        self.memory.append(message)
+
+    def get_response_from_ai(self) -> Dict:
+        shell_config = self.shell.config
+        ai_config = shell_config.get("ai_config")
+        if not ai_config:
+            raise CommandError(f"AI configuration not found in {PyShell.PYSHELL_CONFIG_FILE}")
+        
+        provider = ai_config.get("provider")
+        model = ai_config.get("model")
+        token = ai_config.get("token")
+
+        result = {}
+        try:
+            response = completion(
+                model=f"{provider}/{model}",
+                messages=self.memory,
+                api_key=token,
+                max_tokens=1024
+            )
+            content = response.choices[0].message.content
+            result = json.loads(content)
+        except Exception as e:
+            result = {}
+
+        return result
+
+    def _configure_ai(self) -> bool:
+        print("Before using an AI builtin, there's a few parameters you need to configure:")
+        provider = input("Enter AI provider (e.g., openai): ").strip()
+        model = input("Enter AI model (e.g., gpt-4o-mini): ").strip()
+        token = input("Enter AI token: ").strip()
+
+        if not provider or not model or not token:
+            return False
+
+        self.shell.update_config("ai_config", {"provider": provider, "model": model, "token": token})
+        return True
+
+    def execute_ai(self, args: List[str]):
+        pass
+
+    def execute(self, args: List[str]):
+        # Make sure we have all configs we need to run the LLM query
+        shell_config = self.shell.config
+        if not shell_config.get("ai_config"):
+            # Prompt the user to configure the parameters needed to access the AI
+            if not self._configure_ai():
+                raise CommandError("AI configuration failed. Please try again.")
+
+        self.execute_ai(args)
+
+
+class DoCommand(AICommand):
+    NAME = "do"
+
+    SYSTEM_PROMPT = """
+    You are a highly experienced Unix system administrator and command line expert. Given a natural 
+    language task, output a Bash command that solves it, along with a safety assessment and explanation.
+
+    Your response must contain the following information:
+    1. A bash command that solves the problem. If the problem can't be solved, return an empty string 
+       for the command 
+    2. A risk assessment of the command, as follows:
+        - Risk 0: Safe to run. No data is modified or deleted.
+        - Risk 1: May modify or delete user data, but not system-critical files.
+        - Risk 2: May impact system integrity, security, or availability (e.g., running as root, 
+          altering system files).
+        - If the command is empty, the risk assessment must also be 0.
+    3. An explanation of the command and how it achieves the solution.
+    4. A disclaimer message shown to the user if the command carries any risk (i.e., risk > 0). This
+    message must warn the user about what could happen if the command is executed. If the command is
+    safe (risk 0), return an empty string.
+
+    Make sure your response is a valid JSON object in the following format (with double quotes and no 
+    trailing commas):
+    {
+        "command": "<bash command>",
+        "risk_assessment": <0|1|2>,
+        "explanation": "<explanation of the command>"
+        "disclaimer": "<disclaimer shown if risk > 0, empty string otherwise>"
+    }
+
+    Ensure the JSON is valid and can be parsed with standard JSON parsers. 
+    Do not include markdown, code blocks, or comments. Only output the JSON.
+    """
+
+    def __init__(self, shell: "PyShell"):
+        super().__init__(DoCommand.NAME, shell)
+        self.sub_command = None
+
+        # Init the memory with the system prompt
+        self.add_to_memory({"role": "system", "content": DoCommand.SYSTEM_PROMPT})
+
+    # Override here to ensure we get a valid response from the AI. Otherwise fail with a CommandError
+    def get_response_from_ai(self) -> Dict:
+        response = super().get_response_from_ai()
+
+        if not response:
+            raise CommandError("Failed to get a valid response from the AI")
+
+        if (
+            "command" not in response
+            or "risk_assessment" not in response
+            or "explanation" not in response
+            or "disclaimer" not in response
+        ):
+            raise CommandError("Invalid response format from the AI")
+
+        return response
+    
+    def _show_warning_message(self, message: str) -> bool:
+        print(f"WARNING!\n-------------------------------")
+        print(message)
+        print("-------------------------------\nAre you sure you want to continue? (y/n)")
+        confirmation = input().strip().lower()
+        if confirmation != "y":
+            return False
+        return True
+
+    def execute_ai(self, args: List[str]):
+        user_prompt = " ".join(args)
+        if not user_prompt:
+            print(f"No command provided to '{DoCommand.NAME}'", file=self.err_stream)
+            return
+
+        self.add_to_memory({"role": "user", "content": user_prompt})
+        response = self.get_response_from_ai()
+
+        if not response["command"]:
+            print(response["explanation"])
+            return
+
+        if response["risk_assessment"] > 0:
+            if not self._show_warning_message(response["disclaimer"]):
+                return
+
+        # TODO improve the design here...
+        command, args = self.shell._eval(response["command"])
+        command.out_stream = self.out_stream
+        command.err_stream = self.err_stream
+
+        self.sub_command = command
+        self.sub_command.execute(args)
+
+    def tear_down(self):
+        if self.sub_command:
+            self.sub_command.tear_down()
+
+        return super().tear_down()
+
 
 class CommandFactory:
     def __init__(self, command_type: Type[Command], *args, **kwargs):
@@ -440,9 +609,9 @@ class InputParser:
         if self.user_input[position] == ">" and not is_escaped:
             self._go_to_state("inter_redirect")
             return
-        
+
         if self.user_input[position] == "$" and not is_escaped:
-            if self.user_input[position -1] == " ":
+            if self.user_input[position - 1] == " ":
                 self._save_current_part()
             self._go_to_state("env_variable")
             return
@@ -483,7 +652,7 @@ class InputParser:
             self._pop_state()
             self._save_current_part()
             return
-        
+
         if self.user_input[position] == "$" and not is_escaped:
             self._go_to_state("env_variable")
             return
@@ -559,12 +728,11 @@ class InputParser:
     def _env_variable_state_handler(self, is_escaped: bool, position: int):
         # We check for the end before the last char because we need the previous state
         # to handle the next char (or EOL).
-        end_chars = [" ", '"'] # variable finishes after a space, double quotes or EOL
+        end_chars = [" ", '"']  # variable finishes after a space, double quotes or EOL
         found_end = (
-            (position + 1 < len(self.user_input) and self.user_input[position + 1] in end_chars)
-            or
-            (position == len(self.user_input) - 1)
-        )
+            position + 1 < len(self.user_input)
+            and self.user_input[position + 1] in end_chars
+        ) or (position == len(self.user_input) - 1)
 
         if found_end:
             # Since we check the before the last char, make sure to add it to the variable name
@@ -577,11 +745,13 @@ class InputParser:
             self.env_variable = ""
             self._pop_state()
             return
-        
+
         self.env_variable += self.user_input[position]
 
 
 class PyShell:
+    PYSHELL_CONFIG_FILE = ".pyShell"
+
     def __init__(self):
         self.prompt = "$"
         self.builtin_commands_factory: Dict[str, CommandFactory] = {
@@ -591,14 +761,42 @@ class PyShell:
             PwdCommand.NAME: CommandFactory(PwdCommand),
             CdCommand.NAME: CommandFactory(CdCommand, self),
             HistoryCommand.NAME: CommandFactory(HistoryCommand, self),
+            DoCommand.NAME: CommandFactory(DoCommand, self),
         }
         self._last_dir = os.getcwd()
         self._cached_available_items = set()
         self.history_session_start = 0
         self.last_apended_history_item = 0
+        self.config = {}
         self._on_load()
 
+    def _get_pyshell_config_path(self) -> str:
+        return os.path.join(os.path.expanduser("~"), self.PYSHELL_CONFIG_FILE)
+
+    def _load_pyshell_config(self):
+        config_file_path = self._get_pyshell_config_path()
+        if os.path.exists(config_file_path):
+            try:
+                with open(config_file_path, "r") as f:
+                    self.config = json.load(f)
+            except Exception as e:
+                self.config = {}
+
+    def _save_pyshell_config(self):
+        config_file_path = self._get_pyshell_config_path()
+        try:
+            with open(config_file_path, "w") as f:
+                json.dump(self.config, f, indent=4)
+        except Exception as e:
+            # Do nothing if we can't save the config
+            pass
+
+    def update_config(self, key: str, value):
+        self.config[key] = value
+        self._save_pyshell_config()
+
     def _on_load(self):
+        self._load_pyshell_config()
         if "HISTFILE" in os.environ:
             hist_file = os.environ["HISTFILE"]
             readline.read_history_file(hist_file)
@@ -607,7 +805,9 @@ class PyShell:
     def _on_unload(self):
         if "HISTFILE" in os.environ:
             hist_file = os.environ["HISTFILE"]
-            nelements = readline.get_current_history_length() - self.history_session_start
+            nelements = (
+                readline.get_current_history_length() - self.history_session_start
+            )
             readline.append_history_file(nelements, hist_file)
 
     def _find_command(self, command_name: str) -> CommandFactory:
