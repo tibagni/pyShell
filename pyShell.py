@@ -913,11 +913,19 @@ class PyShell:
         current_inut_line = readline.get_line_buffer()
         input_line_parts = current_inut_line.split(" ")
         is_argument_completion = len(input_line_parts) > 1
+        last_input_part = input_line_parts[-1]
 
         # Build the suggestions only the first time and cache them
         if state == 0:
-            # TODO: Handle path completion
-            if is_argument_completion:
+            if "/" in last_input_part:
+                # If the last part contains a "/", we are completing a path
+                last_input_part = os.path.expanduser(last_input_part)
+                directory_path = os.path.dirname(last_input_part)
+
+                local_files = os.listdir(directory_path)
+                local_files = [file for file in local_files if file.startswith(text)]
+                self._cached_available_items = set(local_files)
+            elif is_argument_completion:
                 # If we are completing an argument, we only need to list the local files
                 # that start with the text
                 local_files = os.listdir(os.getcwd())
@@ -946,11 +954,18 @@ class PyShell:
         if len(suggestions) > state:
             trailing_char = ""
 
-            # If there is only one suggestion, add a trailing space or a "/" if it is a directory
+            # If there is only one suggestion, add a trailing space for files/executables
+            # or a "/" for directories.
             if len(suggestions) == 1:
-                if os.path.isdir(suggestions[0]):
+                suggestion = suggestions[0]
+                # Determine the full path of the potential completion item to check if it's a directory.
+                path_to_check = suggestion
+                if "/" in last_input_part:
+                    path_to_check = os.path.join(os.path.dirname(last_input_part), suggestion)
+
+                if os.path.isdir(path_to_check):
                     trailing_char = "/"
-                elif not suggestions[0].endswith("/"):
+                else:
                     trailing_char = " "
 
             return suggestions[state] + trailing_char
@@ -996,6 +1011,7 @@ class PyShell:
 
             cmd_factory = self._find_command(ui.input_parts[0])
             cmd_args = ui.input_parts[1:] if len(ui.input_parts) > 1 else []
+            cmd_args = [os.path.expanduser(arg) for arg in cmd_args] # Expand "~" to the user's home
 
             out_stream = None
             err_stream = None
