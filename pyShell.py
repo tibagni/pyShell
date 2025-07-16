@@ -10,6 +10,7 @@ from typing import List, Literal, TextIO, Tuple, Dict, Type, Optional, Final
 
 FileMode = Literal["w", "a"]
 
+
 class CommandError(Exception):
     def __init__(self, message: str):
         self.message = message
@@ -325,33 +326,36 @@ class AICommand(BuiltinCommand):
     def add_to_memory(self, message: Dict):
         self.memory.append(message)
 
-    def get_response_from_ai(self) -> Dict:
+    def get_response_from_ai(self) -> str:
         shell_config = self.shell.config
         ai_config = shell_config.get("ai_config")
         if not ai_config:
-            raise CommandError(f"AI configuration not found in {PyShell.PYSHELL_CONFIG_FILE}")
-        
+            raise CommandError(
+                f"AI configuration not found in {PyShell.PYSHELL_CONFIG_FILE}"
+            )
+
         provider = ai_config.get("provider")
         model = ai_config.get("model")
         token = ai_config.get("token")
 
-        result = {}
+        result = ""
         try:
             response = completion(
                 model=f"{provider}/{model}",
                 messages=self.memory,
                 api_key=token,
-                max_tokens=1024
+                max_tokens=1024,
             )
-            content = response.choices[0].message.content
-            result = json.loads(content)
+            result = response.choices[0].message.content or ""
         except Exception as e:
-            result = {}
+            result = ""
 
         return result
 
     def _configure_ai(self) -> bool:
-        print("Before using an AI builtin, there's a few parameters you need to configure:")
+        print(
+            "Before using an AI builtin, there's a few parameters you need to configure:"
+        )
         provider = input("Enter AI provider (e.g., openai): ").strip()
         model = input("Enter AI model (e.g., gpt-4o-mini): ").strip()
         token = input("Enter AI token: ").strip()
@@ -359,7 +363,9 @@ class AICommand(BuiltinCommand):
         if not provider or not model or not token:
             return False
 
-        self.shell.update_config("ai_config", {"provider": provider, "model": model, "token": token})
+        self.shell.update_config(
+            "ai_config", {"provider": provider, "model": model, "token": token}
+        )
         return True
 
     def execute_ai(self, args: List[str]):
@@ -371,7 +377,9 @@ class AICommand(BuiltinCommand):
         if not shell_config.get("ai_config"):
             # Prompt the user to configure the parameters needed to access the AI
             if not self._configure_ai():
-                raise CommandError("AI configuration failed. Please try again.")
+                raise CommandError(
+                    "AI configuration failed. Please configure it properly before using AI built-ins."
+                )
 
         self.execute_ai(args)
 
@@ -418,8 +426,13 @@ class DoCommand(AICommand):
         self.add_to_memory({"role": "system", "content": DoCommand.SYSTEM_PROMPT})
 
     # Override here to ensure we get a valid response from the AI. Otherwise fail with a CommandError
-    def get_response_from_ai(self) -> Dict:
-        response = super().get_response_from_ai()
+    def get_structured_response_from_ai(self) -> Dict:
+        raw_response = super().get_response_from_ai()
+
+        try:
+            response = json.loads(raw_response)
+        except Exception:
+            response = None
 
         if not response:
             raise CommandError("Failed to get a valid response from the AI")
@@ -433,11 +446,13 @@ class DoCommand(AICommand):
             raise CommandError("Invalid response format from the AI")
 
         return response
-    
+
     def _show_warning_message(self, message: str) -> bool:
         print(f"WARNING!\n-------------------------------")
         print(message)
-        print("-------------------------------\nAre you sure you want to continue? (y/n)")
+        print(
+            "-------------------------------\nAre you sure you want to continue? (y/n)"
+        )
         confirmation = input().strip().lower()
         if confirmation != "y":
             return False
@@ -450,7 +465,7 @@ class DoCommand(AICommand):
             return
 
         self.add_to_memory({"role": "user", "content": user_prompt})
-        response = self.get_response_from_ai()
+        response = self.get_structured_response_from_ai()
 
         if not response["command"]:
             print(response["explanation"])
@@ -460,7 +475,6 @@ class DoCommand(AICommand):
             if not self._show_warning_message(response["disclaimer"]):
                 return
 
-        # TODO improve the design here...
         command, args = self.shell._eval(response["command"])
         command.out_stream = self.out_stream
         command.err_stream = self.err_stream
@@ -473,7 +487,36 @@ class DoCommand(AICommand):
             self.sub_command.tear_down()
 
         return super().tear_down()
+    
+class ExplainCommand(AICommand):
+    NAME = "explain"
 
+    SYSTEM_PROMPT = """
+    You are a highly experienced Unix system administrator and command line expert. Given a Bash command, 
+    output a detailed explanation of what the command does, including its components and their roles.
+    Also provide one or 2 examples onm how to use that command in a real-world scenario.
+    If the input provided is a complex command (e.g., a pipeline), break it down into its components
+    and explain each part.
+
+    Make sure to keep your answer short and concise, focusing on the key aspects of the command.
+    Make it at most 5 lines long, and use simple language that is easy to understand.
+    Do not include markdown, code blocks, or comments. Only output the explanation.
+    """
+
+    def __init__(self, shell: "PyShell"):
+        super().__init__(ExplainCommand.NAME, shell)
+
+        # Init the memory with the system prompt
+        self.add_to_memory({"role": "system", "content": ExplainCommand.SYSTEM_PROMPT})
+
+    def execute_ai(self, args: List[str]):
+        user_prompt = " ".join(args)
+        if not user_prompt:
+            return
+        
+        self.add_to_memory({"role": "user", "content": user_prompt})
+        response = self.get_response_from_ai()
+        print(response, file=self.out_stream)
 
 class CommandFactory:
     def __init__(self, command_type: Type[Command], *args, **kwargs):
@@ -762,6 +805,7 @@ class PyShell:
             CdCommand.NAME: CommandFactory(CdCommand, self),
             HistoryCommand.NAME: CommandFactory(HistoryCommand, self),
             DoCommand.NAME: CommandFactory(DoCommand, self),
+            ExplainCommand.NAME: CommandFactory(ExplainCommand, self),
         }
         self._last_dir = os.getcwd()
         self._cached_available_items = set()
