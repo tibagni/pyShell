@@ -316,7 +316,6 @@ class HistoryCommand(BuiltinCommand):
             print(f"\t{i}  {history_item}", file=self.out_stream)
 
 
-# TODO: Implement the AI commands: "explain" and "suggest"
 class AICommand(BuiltinCommand):
     def __init__(self, name: str, shell: "PyShell"):
         super().__init__(name)
@@ -911,37 +910,50 @@ class PyShell:
         return list(potential_executables)
 
     def _handle_tab_completion(self, text: str, state: int) -> Optional[str]:
-        # TODO handle argument completion
-        # TODO handle path completion
-        # current_inut_line = readline.get_line_buffer()
-        # input_line_parts = current_inut_line.split(" ")
-        # is_argument_completion = len(input_line_parts) > 1
+        current_inut_line = readline.get_line_buffer()
+        input_line_parts = current_inut_line.split(" ")
+        is_argument_completion = len(input_line_parts) > 1
 
         # Build the suggestions only the first time and cache them
         if state == 0:
-            # 1 - List the potential builtin commands
-            builtin_commands = list(self.builtin_commands_factory.keys())
-            builtin_commands = [cmd for cmd in builtin_commands if cmd.startswith(text)]
+            # TODO: Handle path completion
+            if is_argument_completion:
+                # If we are completing an argument, we only need to list the local files
+                # that start with the text
+                local_files = os.listdir(os.getcwd())
+                local_files = [file for file in local_files if file.startswith(text)]
+                self._cached_available_items = set(local_files)
+            else:
+                # 1 - List the potential builtin commands
+                builtin_commands = list(self.builtin_commands_factory.keys())
+                builtin_commands = [cmd for cmd in builtin_commands if cmd.startswith(text)]
 
-            # 2 - List the potential local files
-            local_files = os.listdir(os.getcwd())
-            local_files = [file for file in local_files if file.startswith(text)]
+                # 2 - List the potential local files
+                local_files = os.listdir(os.getcwd())
+                local_files = [file for file in local_files if file.startswith(text)]
 
-            # 3 - List the potential path files
-            path_files = []
-            if text:
-                path_files = self._find_executables_in_path(text)
+                # 3 - List the potential path files
+                path_files = []
+                if text:
+                    path_files = self._find_executables_in_path(text)
 
-            # 4 - Combine all suggestions
-            self._cached_available_items = set(
-                builtin_commands + local_files + path_files
-            )
+                # 4 - Combine all suggestions
+                self._cached_available_items = set(
+                    builtin_commands + local_files + path_files
+                )
 
         suggestions = list(self._cached_available_items)
         if len(suggestions) > state:
-            # If there is only one suggestion, add a trailing space
-            add_trailing_space = len(suggestions) == 1
-            return suggestions[state] + (" " if add_trailing_space else "")
+            trailing_char = ""
+
+            # If there is only one suggestion, add a trailing space or a "/" if it is a directory
+            if len(suggestions) == 1:
+                if os.path.isdir(suggestions[0]):
+                    trailing_char = "/"
+                elif not suggestions[0].endswith("/"):
+                    trailing_char = " "
+
+            return suggestions[state] + trailing_char
 
         return None
 
