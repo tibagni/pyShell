@@ -353,12 +353,12 @@ class AICommand(BuiltinCommand):
         return result
 
     def _configure_ai(self) -> bool:
-        print(
-            "Before using an AI builtin, there's a few parameters you need to configure:"
+        self.shell.show_intenral_message(
+            "\nBefore using an AI builtin, there's a few parameters you need to configure:"
         )
-        provider = input("Enter AI provider (e.g., openai): ").strip()
-        model = input("Enter AI model (e.g., gpt-4o-mini): ").strip()
-        token = input("Enter AI token: ").strip()
+        provider = self.shell.request_internal_input("Enter AI provider (e.g., openai): ")
+        model = self.shell.request_internal_input("Enter AI model (e.g., gpt-4o-mini): ")
+        token = self.shell.request_internal_input("Enter AI token: ")
 
         if not provider or not model or not token:
             return False
@@ -448,11 +448,12 @@ class DoCommand(AICommand):
         return response
 
     def _show_warning_message(self, message: str) -> bool:
-        print(f"WARNING!\n-------------------------------")
-        print(message)
-        print(
-            "-------------------------------\nAre you sure you want to continue? (y/n)"
-        )
+        warn_message = "\nWARNING!\n-------------------------------\n"
+        warn_message += message
+        warn_message += "\n-------------------------------\n"
+        warn_message += "\nAre you sure you want to continue? (y/n)"
+        self.shell.show_intenral_message(warn_message)
+
         confirmation = input().strip().lower()
         if confirmation != "y":
             return False
@@ -471,7 +472,7 @@ class DoCommand(AICommand):
             print(response["explanation"], file=self.err_stream)
             return
         
-        self.shell.show_intenral_message(f"Executing '{response['command']}'...")
+        self.shell.show_intenral_message(f"> Executing '{response['command']}'...")
 
         if response["risk_assessment"] > 0:
             if not self._show_warning_message(response["disclaimer"]):
@@ -835,7 +836,10 @@ class PyShell:
 
     # This is intended to show (print) messages to the shell always (and not redirect to any stream)
     def show_intenral_message(self, message: str):
-        print(f"\033[90m > {message} \033[0m")
+        print(f"\033[90m {message} \033[0m")
+
+    def request_internal_input(self, message: str) -> str:
+        return input(f"\033[90m {message} \033[0m").strip()
 
 
     def _get_pyshell_config_path(self) -> str:
