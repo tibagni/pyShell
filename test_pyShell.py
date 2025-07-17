@@ -2,6 +2,7 @@ import unittest
 import unittest.mock
 import sys
 import os
+import json
 
 from unittest.mock import patch, mock_open, ANY
 from pyShell import (
@@ -12,7 +13,9 @@ from pyShell import (
     InputParser,
     EchoCommand,
     PipelineCommand,
-    AssignmentCommand
+    AssignmentCommand,
+    DoCommand,
+    ExplainCommand,
 )
 
 
@@ -985,6 +988,241 @@ class TestPyShell(unittest.TestCase):
         command, args = self.shell._eval("ABC=5")
         command.execute(args)
         self.assertEqual(os.environ.get("ABC"), "5")
+
+
+class TestAICommands(unittest.TestCase):
+    def setUp(self):
+        self.shell = PyShell()
+        # Mock the AI config to prevent the real _configure_ai from running
+        self.shell.config["ai_config"] = {
+            "provider": "mock_provider",
+            "model": "mock_model",
+            "token": "mock_token",
+        }
+
+    @patch("pyShell.DoCommand.get_structured_response_from_ai")
+    @patch("pyShell.DoCommand._show_warning_message")
+    def test_do_command_safe_execution(self, mock_show_warning, mock_get_response):
+        """
+        Tests that a 'do' command with a safe (risk 0) response from the AI
+        executes the suggested command without showing a warning.
+        """
+        # Arrange: Mock the AI response for a safe command
+        mock_ai_response = {
+            "command": "ls -l",
+            "risk_assessment": 0,
+            "explanation": "A safe command to list files.",
+            "disclaimer": "",
+        }
+        mock_get_response.return_value = mock_ai_response
+
+        # Act: Get the 'do' command, mock its internal call to _eval, and execute it
+        do_command, do_args = self.shell._eval("do some safe task")
+        self.assertIsInstance(do_command, DoCommand)
+
+        mock_sub_command = unittest.mock.Mock(spec=do_command)
+        do_command.shell._eval = unittest.mock.Mock(return_value=(mock_sub_command, ["-l"]))
+        do_command.execute(do_args)
+
+        # Assert
+        mock_get_response.assert_called_once()
+        mock_show_warning.assert_not_called()
+        do_command.shell._eval.assert_called_once_with("ls -l")
+        mock_sub_command.execute.assert_called_once_with(["-l"])
+
+    @patch("pyShell.DoCommand.get_structured_response_from_ai")
+    @patch("pyShell.DoCommand._show_warning_message", return_value=True)  # User accepts
+    def test_do_command_risky_execution_accepted(
+        self, mock_show_warning, mock_get_response
+    ):
+        """
+        Tests that a 'do' command with a risky (risk > 0) response from the AI
+        prompts the user and executes the command when the user accepts.
+        """
+        # Arrange: Mock the AI response for a risky command
+        mock_ai_response = {
+            "command": "rm -rf /",
+            "risk_assessment": 2,
+            "explanation": "A very risky command.",
+            "disclaimer": "This will delete everything!",
+        }
+        mock_get_response.return_value = mock_ai_response
+
+        # Act
+        do_command, do_args = self.shell._eval("do some risky task")
+        self.assertIsInstance(do_command, DoCommand)
+
+        mock_sub_command = unittest.mock.Mock(spec=do_command)
+        do_command.shell._eval = unittest.mock.Mock(
+            return_value=(mock_sub_command, ["-rf", "/"])
+        )
+        do_command.execute(do_args)
+
+        # Assert
+        mock_get_response.assert_called_once()
+        mock_show_warning.assert_called_once_with("This will delete everything!")
+        do_command.shell._eval.assert_called_once_with("rm -rf /")
+        mock_sub_command.execute.assert_called_once_with(["-rf", "/"])
+
+    @patch("pyShell.DoCommand.get_structured_response_from_ai")
+    @patch("pyShell.DoCommand._show_warning_message", return_value=False)  # User rejects
+    def test_do_command_risky_execution_rejected(
+        self, mock_show_warning, mock_get_response
+    ):
+        """
+        Tests that a 'do' command with a risky (risk > 0) response from the AI
+        prompts the user and does not execute the command when the user rejects.
+        """
+        # Arrange: Mock the AI response for a risky command
+        mock_ai_response = {
+            "command": "rm -rf /",
+            "risk_assessment": 2,
+            "explanation": "A very risky command.",
+            "disclaimer": "This will delete everything!",
+        }
+        mock_get_response.return_value = mock_ai_response
+
+        # Act
+        do_command, do_args = self.shell._eval("do some risky task")
+        self.assertIsInstance(do_command, DoCommand)
+
+        do_command.shell._eval = unittest.mock.Mock(return_value=None)
+        do_command.execute(do_args)
+
+        # Assert
+        mock_get_response.assert_called_once()
+        mock_show_warning.assert_called_once_with("This will delete everything!")
+        # _eval and the sub command should not be called, since the user rejected
+        do_command.shell._eval.assert_not_called()
+
+    @patch("pyShell.AICommand.get_response_from_ai")
+    def test_do_command_invalid_json_response(self, mock_get_response):
+        """
+        Tests that a CommandError is raised if the AI returns malformed JSON.
+        """
+        # Arrange: Mock the AI to return a non-JSON string
+        mock_get_response.return_value = "This is not JSON"
+
+        # Act
+        do_command, do_args = self.shell._eval("do something")
+        self.assertIsInstance(do_command, DoCommand)
+
+        # Assert
+        with self.assertRaises(CommandError) as cm:
+            do_command.execute(do_args)
+
+        self.assertEqual(
+            str(cm.exception), "Failed to get a valid response from the AI"
+        )
+        mock_get_response.assert_called_once()
+
+    @patch("pyShell.AICommand.get_response_from_ai")
+    def test_do_command_missing_keys_in_response(self, mock_get_response):
+        """
+        Tests that a CommandError is raised if the AI returns a valid JSON
+        object but with missing keys.
+        """
+        # Arrange: Mock the AI to return JSON with a missing key
+        mock_get_response.return_value = json.dumps({"command": "ls -l"})
+
+        # Act
+        do_command, do_args = self.shell._eval("do something")
+        self.assertIsInstance(do_command, DoCommand)
+
+        # Assert
+        with self.assertRaises(CommandError) as cm:
+            do_command.execute(do_args)
+
+        self.assertEqual(
+            str(cm.exception), "Invalid response format from the AI"
+        )
+        mock_get_response.assert_called_once()
+
+    @patch("pyShell.AICommand.execute_ai")
+    @patch("pyShell.AICommand._configure_ai", return_value=True)
+    def test_do_command_triggers_configuration_flow(
+        self, mock_configure_ai, mock_execute_ai
+    ):
+        """
+        Tests that if AI is not configured, the configuration flow is triggered,
+        and upon success, the command execution proceeds.
+        """
+        # Arrange: Start with an empty config to simulate first-time use
+        self.shell.config = {}
+        do_command, do_args = self.shell._eval("do something")
+        self.assertIsInstance(do_command, DoCommand)
+
+        # The exception is thrown because we don't actually configure the AI after the mocked method 
+        # is called. This test is only to ensure that we will call the configuration method.
+        with self.assertRaises(CommandError) as cm:
+            do_command.execute(do_args)
+
+
+        mock_configure_ai.assert_called_once()
+
+    @patch("pyShell.DoCommand.get_structured_response_from_ai")
+    @patch("pyShell.DoCommand._show_warning_message")
+    @patch("builtins.print")
+    def test_do_command_ai_returns_empty_command(
+        self, mock_print, mock_show_warning, mock_get_response
+    ):
+        """
+        Tests that 'do' command prints an explanation when the AI cannot find a command.
+        """
+        # Arrange
+        mock_ai_response = {
+            "command": "",
+            "risk_assessment": 0,
+            "explanation": "Sorry, I could not determine a command for your request.",
+            "disclaimer": "",
+        }
+        mock_get_response.return_value = mock_ai_response
+
+        # Act
+        do_command, do_args = self.shell._eval("do an impossible task")
+        do_command.execute(do_args)
+
+        # Assert
+        mock_get_response.assert_called_once()
+        mock_print.assert_called_once_with(mock_ai_response["explanation"])
+        mock_show_warning.assert_not_called()
+
+    @patch("pyShell.AICommand.get_response_from_ai")
+    @patch("builtins.print")
+    def test_explain_command_success(self, mock_print, mock_get_response):
+        """
+        Tests that the 'explain' command correctly calls the AI and prints the response.
+        """
+        # Arrange
+        mock_explanation = "This is a detailed explanation of the 'ls -l' command."
+        mock_get_response.return_value = mock_explanation
+
+        # Act
+        explain_command, explain_args = self.shell._eval("explain ls -l")
+        self.assertIsInstance(explain_command, ExplainCommand)
+        explain_command.execute(explain_args)
+
+        # Assert
+        mock_get_response.assert_called_once()
+        mock_print.assert_called_once_with(mock_explanation, file=ANY)
+
+    @patch("pyShell.AICommand.get_response_from_ai")
+    @patch("builtins.print")
+    def test_explain_command_no_args(self, mock_print, mock_get_response):
+        """
+        Tests that the 'explain' command does nothing when no arguments are provided.
+        """
+        # Arrange
+        explain_command, explain_args = self.shell._eval("explain")
+        self.assertIsInstance(explain_command, ExplainCommand)
+        self.assertEqual(explain_args, [])
+
+        # Act
+        explain_command.execute(explain_args)
+
+        # Assert
+        mock_get_response.assert_not_called()
+        mock_print.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()
