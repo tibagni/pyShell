@@ -468,8 +468,10 @@ class DoCommand(AICommand):
         response = self.get_structured_response_from_ai()
 
         if not response["command"]:
-            print(response["explanation"])
+            print(response["explanation"], file=self.err_stream)
             return
+        
+        self.shell.show_intenral_message(f"Executing '{response['command']}'...")
 
         if response["risk_assessment"] > 0:
             if not self._show_warning_message(response["disclaimer"]):
@@ -830,6 +832,11 @@ class PyShell:
         self.last_apended_history_item = 0
         self.config = {}
         self._on_load()
+
+    # This is intended to show (print) messages to the shell always (and not redirect to any stream)
+    def show_intenral_message(self, message: str):
+        print(f"\033[90m > {message} \033[0m")
+
 
     def _get_pyshell_config_path(self) -> str:
         return os.path.join(os.path.expanduser("~"), self.PYSHELL_CONFIG_FILE)

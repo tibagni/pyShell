@@ -1195,6 +1195,9 @@ class TestAICommands(unittest.TestCase):
             "token": "mock_token",
         }
 
+        # Avoid showing these messages on the test output
+        self.shell.show_intenral_message = lambda message: None
+
     @patch("pyShell.DoCommand.get_structured_response_from_ai")
     @patch("pyShell.DoCommand._show_warning_message")
     def test_do_command_safe_execution(self, mock_show_warning, mock_get_response):
@@ -1380,7 +1383,7 @@ class TestAICommands(unittest.TestCase):
 
         # Assert
         mock_get_response.assert_called_once()
-        mock_print.assert_called_once_with(mock_ai_response["explanation"])
+        mock_print.assert_called_once_with(mock_ai_response["explanation"], file=ANY)
         mock_show_warning.assert_not_called()
 
     @patch("pyShell.AICommand.get_response_from_ai")
