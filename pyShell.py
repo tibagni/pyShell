@@ -487,7 +487,8 @@ class DoCommand(AICommand):
             self.sub_command.tear_down()
 
         return super().tear_down()
-    
+
+
 class ExplainCommand(AICommand):
     NAME = "explain"
 
@@ -513,10 +514,11 @@ class ExplainCommand(AICommand):
         user_prompt = " ".join(args)
         if not user_prompt:
             return
-        
+
         self.add_to_memory({"role": "user", "content": user_prompt})
         response = self.get_response_from_ai()
         print(response, file=self.out_stream)
+
 
 class CommandFactory:
     def __init__(self, command_type: Type[Command], *args, **kwargs):
@@ -620,33 +622,48 @@ class InputParser:
         self._pop_state()
         self._go_to_state(state_name)
 
-    def _save_current_part(self):
+    def _expand_glob_pattern(self, original_arg: str) -> List[str]:
+        if any(char in original_arg for char in "*?["):  # Check for glob wildcards
+            globbed_results = glob.glob(original_arg)
+            if globbed_results:
+                return globbed_results
+
+        return [original_arg]
+
+    def _save_current_part(self, apply_globbing=False):
         if self.current_part:
             # If we have a current part, add it to the list of parts
-            self.current_parts.append(self.current_part)
+            # But first let's expand what needs to be expanded
+            part = os.path.expanduser(self.current_part)
+            if apply_globbing:
+                parts = self._expand_glob_pattern(part)
+            else:
+                parts = [part]
+
+            self.current_parts.extend(parts)
             self.current_part = ""
 
     def _default_state_handler(self, is_escaped: bool, position: int):
         # If we are at the end of the input, add the current part to the list of parts
         if position == len(self.user_input):
-            self._save_current_part()
+            self._save_current_part(apply_globbing=True)
             return
 
         if self.user_input[position] == "\\" and not is_escaped:
             return
 
         if self.user_input[position] == " " and not is_escaped:
-            self._save_current_part()
+            self._save_current_part(apply_globbing=True)
             return
 
         if self.user_input[position] == "'" and not is_escaped:
             self._go_to_state("single_quote")
-            self._save_current_part()
+            self._save_current_part(apply_globbing=True)
             return
 
         if self.user_input[position] == '"' and not is_escaped:
             self._go_to_state("double_quote")
-            self._save_current_part()
+            self._save_current_part(apply_globbing=True)
             return
 
         if self.user_input[position] == ">" and not is_escaped:
@@ -655,12 +672,12 @@ class InputParser:
 
         if self.user_input[position] == "$" and not is_escaped:
             if self.user_input[position - 1] == " ":
-                self._save_current_part()
+                self._save_current_part(apply_globbing=True)
             self._go_to_state("env_variable")
             return
 
         if self.user_input[position] == "|" and not is_escaped:
-            self._save_current_part()
+            self._save_current_part(apply_globbing=True)
             self._add_to_pipeline()
             return
 
@@ -935,7 +952,9 @@ class PyShell:
             else:
                 # 1 - List the potential builtin commands
                 builtin_commands = list(self.builtin_commands_factory.keys())
-                builtin_commands = [cmd for cmd in builtin_commands if cmd.startswith(text)]
+                builtin_commands = [
+                    cmd for cmd in builtin_commands if cmd.startswith(text)
+                ]
 
                 # 2 - List the potential local files
                 local_files = os.listdir(os.getcwd())
@@ -962,7 +981,9 @@ class PyShell:
                 # Determine the full path of the potential completion item to check if it's a directory.
                 path_to_check = suggestion
                 if "/" in last_input_part:
-                    path_to_check = os.path.join(os.path.dirname(last_input_part), suggestion)
+                    path_to_check = os.path.join(
+                        os.path.dirname(last_input_part), suggestion
+                    )
 
                 if os.path.isdir(path_to_check):
                     trailing_char = "/"
@@ -996,21 +1017,6 @@ class PyShell:
             finally:
                 command.tear_down()
 
-    def _expand_glob_patterns(self, original_args: List[str]) -> List[str]:
-        expanded_list = []
-        for original_arg in original_args:
-            if any(char in original_arg for char in '*?['): # Check for glob wildcards
-                globbed_results = glob.glob(original_arg)
-                if globbed_results:
-                    # TODO maybe check if it really is a path
-                    expanded_list.extend(globbed_results)
-                else:
-                    expanded_list.append(original_arg)
-            else:
-                expanded_list.append(original_arg)
-
-        return expanded_list
-
     def _eval(self, user_input: str) -> Tuple[Command, List[str]]:
         input_parser = InputParser(user_input)
         user_inputs = input_parser.parse()
@@ -1027,8 +1033,6 @@ class PyShell:
 
             cmd_factory = self._find_command(ui.input_parts[0])
             cmd_args = ui.input_parts[1:] if len(ui.input_parts) > 1 else []
-            cmd_args = [os.path.expanduser(arg) for arg in cmd_args] # Expand "~" to the user's home
-            cmd_args = self._expand_glob_patterns(cmd_args)
 
             out_stream = None
             err_stream = None

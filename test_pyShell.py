@@ -400,7 +400,9 @@ class TestPyShell(unittest.TestCase):
 
     @patch("readline.append_history_file")
     @patch("readline.get_current_history_length", return_value=10)
-    def test_history_append_flag(self, mock_get_history_length, mock_append_history_file):
+    def test_history_append_flag(
+        self, mock_get_history_length, mock_append_history_file
+    ):
         self.shell.last_apended_history_item = 0
         command = self.shell._find_command("history").make()
         command.execute(["-a", "histfile.txt"])
@@ -411,7 +413,9 @@ class TestPyShell(unittest.TestCase):
 
     @patch("readline.append_history_file")
     @patch("readline.get_current_history_length", return_value=10)
-    def test_history_append_flag_second_time(self, mock_get_history_length, mock_append_history_file):
+    def test_history_append_flag_second_time(
+        self, mock_get_history_length, mock_append_history_file
+    ):
         self.shell.last_apended_history_item = 5
         command = self.shell._find_command("history").make()
         command.execute(["-a", "histfile.txt"])
@@ -861,7 +865,7 @@ class TestPyShell(unittest.TestCase):
     def test_eval_pipeline_command(self, mock_input_parser):
         mock_input_parser.return_value.parse.return_value = [
             UserInput(input_parts=["echo", "Hello, World!"]),
-            UserInput(input_parts=["wc"])
+            UserInput(input_parts=["wc"]),
         ]
 
         command, args = self.shell._eval("echo Hello, World!")
@@ -874,7 +878,13 @@ class TestPyShell(unittest.TestCase):
         result = InputParser("echo $HOME").parse()
         self.assertEqual(
             result,
-            [UserInput(input_parts=["echo", "/mock/home"], output_file=None, error_file=None)]
+            [
+                UserInput(
+                    input_parts=["echo", "/mock/home"],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
         )
 
     @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
@@ -882,7 +892,13 @@ class TestPyShell(unittest.TestCase):
         result = InputParser("echo $HOME aaa").parse()
         self.assertEqual(
             result,
-            [UserInput(input_parts=["echo", "/mock/home", "aaa"], output_file=None, error_file=None)]
+            [
+                UserInput(
+                    input_parts=["echo", "/mock/home", "aaa"],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
         )
 
     @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
@@ -890,7 +906,13 @@ class TestPyShell(unittest.TestCase):
         result = InputParser("echo aa $HOME").parse()
         self.assertEqual(
             result,
-            [UserInput(input_parts=["echo", "aa", "/mock/home"], output_file=None, error_file=None)]
+            [
+                UserInput(
+                    input_parts=["echo", "aa", "/mock/home"],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
         )
 
     @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
@@ -898,15 +920,20 @@ class TestPyShell(unittest.TestCase):
         result = InputParser("echo aa$HOME").parse()
         self.assertEqual(
             result,
-            [UserInput(input_parts=["echo", "aa/mock/home"], output_file=None, error_file=None)]
+            [
+                UserInput(
+                    input_parts=["echo", "aa/mock/home"],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
         )
 
     @patch.dict(os.environ, {}, clear=True)
     def test_parse_input_env_var_expansion_not_found(self):
         result = InputParser("echo $HOME").parse()
         self.assertEqual(
-            result,
-            [UserInput(input_parts=["echo"], output_file=None, error_file=None)]
+            result, [UserInput(input_parts=["echo"], output_file=None, error_file=None)]
         )
 
     @patch.dict(os.environ, {}, clear=True)
@@ -914,7 +941,7 @@ class TestPyShell(unittest.TestCase):
         result = InputParser("echo aa $HOME").parse()
         self.assertEqual(
             result,
-            [UserInput(input_parts=["echo", "aa"], output_file=None, error_file=None)]
+            [UserInput(input_parts=["echo", "aa"], output_file=None, error_file=None)],
         )
 
     @patch.dict(os.environ, {}, clear=True)
@@ -922,7 +949,7 @@ class TestPyShell(unittest.TestCase):
         result = InputParser("echo aa$HOME").parse()
         self.assertEqual(
             result,
-            [UserInput(input_parts=["echo", "aa"], output_file=None, error_file=None)]
+            [UserInput(input_parts=["echo", "aa"], output_file=None, error_file=None)],
         )
 
     @patch.dict(os.environ, {}, clear=True)
@@ -930,7 +957,7 @@ class TestPyShell(unittest.TestCase):
         result = InputParser("echo $HOME aa").parse()
         self.assertEqual(
             result,
-            [UserInput(input_parts=["echo", "aa"], output_file=None, error_file=None)]
+            [UserInput(input_parts=["echo", "aa"], output_file=None, error_file=None)],
         )
 
     @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
@@ -938,7 +965,13 @@ class TestPyShell(unittest.TestCase):
         result = InputParser('echo "$HOME"').parse()
         self.assertEqual(
             result,
-            [UserInput(input_parts=["echo", "/mock/home"], output_file=None, error_file=None)]
+            [
+                UserInput(
+                    input_parts=["echo", "/mock/home"],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
         )
 
     @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
@@ -946,7 +979,13 @@ class TestPyShell(unittest.TestCase):
         result = InputParser('echo "$HOME aaa"').parse()
         self.assertEqual(
             result,
-            [UserInput(input_parts=["echo", "/mock/home aaa"], output_file=None, error_file=None)]
+            [
+                UserInput(
+                    input_parts=["echo", "/mock/home aaa"],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
         )
 
     @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
@@ -954,7 +993,13 @@ class TestPyShell(unittest.TestCase):
         result = InputParser('echo "aa $HOME"').parse()
         self.assertEqual(
             result,
-            [UserInput(input_parts=["echo", "aa /mock/home"], output_file=None, error_file=None)]
+            [
+                UserInput(
+                    input_parts=["echo", "aa /mock/home"],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
         )
 
     @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
@@ -962,7 +1007,13 @@ class TestPyShell(unittest.TestCase):
         result = InputParser('echo "aa$HOME"').parse()
         self.assertEqual(
             result,
-            [UserInput(input_parts=["echo", "aa/mock/home"], output_file=None, error_file=None)]
+            [
+                UserInput(
+                    input_parts=["echo", "aa/mock/home"],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
         )
 
     @patch.dict(os.environ, {"HOME": "/mock/home"}, clear=True)
@@ -971,8 +1022,152 @@ class TestPyShell(unittest.TestCase):
         result = InputParser("echo '$HOME'").parse()
         self.assertEqual(
             result,
-            [UserInput(input_parts=["echo", "$HOME"], output_file=None, error_file=None)]
+            [
+                UserInput(
+                    input_parts=["echo", "$HOME"], output_file=None, error_file=None
+                )
+            ],
         )
+
+    @patch.dict(os.environ, {"HOME": "/home/user"}, clear=True)
+    def test_home_expansion_simple_path(self):
+        result = InputParser("ls -l ~").parse()
+        self.assertEqual(
+            result,
+            [
+                UserInput(
+                    input_parts=["ls", "-l", "/home/user"],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
+        )
+
+    @patch.dict(os.environ, {"HOME": "/home/user"}, clear=True)
+    def test_home_expansion(self):
+        result = InputParser("ls -l ~/.git").parse()
+        self.assertEqual(
+            result,
+            [
+                UserInput(
+                    input_parts=["ls", "-l", "/home/user/.git"],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
+        )
+
+    @patch("glob.glob")
+    def test_single_glob_pattern_with_matches(self, mock_glob):
+        mock_glob.return_value = ["file1.py", "file2.py"]
+        result = InputParser("ls -l *.py").parse()
+        self.assertEqual(
+            result,
+            [
+                UserInput(
+                    input_parts=["ls", "-l", "file1.py", "file2.py"],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
+        )
+        mock_glob.assert_called_once_with("*.py")
+
+    @patch("glob.glob")
+    def test_single_glob_pattern_with_squotes(self, mock_glob):
+        result = InputParser("ls -l '*.py'").parse()
+        self.assertEqual(
+            result,
+            [
+                UserInput(
+                    input_parts=["ls", "-l", "*.py"], output_file=None, error_file=None
+                )
+            ],
+        )
+        mock_glob.assert_not_called()
+
+    @patch("glob.glob")
+    def test_single_glob_pattern_with_dquotes(self, mock_glob):
+        result = InputParser('ls -l "*.py"').parse()
+        self.assertEqual(
+            result,
+            [
+                UserInput(
+                    input_parts=["ls", "-l", "*.py"], output_file=None, error_file=None
+                )
+            ],
+        )
+        mock_glob.assert_not_called()
+
+    @patch("glob.glob")
+    def test_single_glob_pattern_no_matches(self, mock_glob):
+        mock_glob.return_value = []
+        result = InputParser("ls -l *.py").parse()
+        self.assertEqual(
+            result,
+            [
+                UserInput(
+                    input_parts=["ls", "-l", "*.py"], output_file=None, error_file=None
+                )
+            ],
+        )
+        mock_glob.assert_called_once_with("*.py")
+
+    @patch("glob.glob")
+    def test_recursive_glob(self, mock_glob):
+        mock_glob.return_value = ["docs/subdir/notes.md"]
+        result = InputParser("ls -l docs/**/*.md").parse()
+        self.assertEqual(
+            result,
+            [
+                UserInput(
+                    input_parts=["ls", "-l", "docs/subdir/notes.md"],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
+        )
+        mock_glob.assert_called_once_with("docs/**/*.md")
+
+    @patch("glob.glob")
+    def test_special_characters_no_glob_match(self, mock_glob):
+        mock_glob.side_effect = [[], []]
+        result = InputParser("ls -l file[name].txt q?uiz.pdf").parse()
+        self.assertEqual(
+            result,
+            [
+                UserInput(
+                    input_parts=["ls", "-l", "file[name].txt", "q?uiz.pdf"],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
+        )
+        mock_glob.assert_any_call("file[name].txt")
+        mock_glob.assert_any_call("q?uiz.pdf")
+        self.assertEqual(mock_glob.call_count, 2)
+
+    @patch("glob.glob")
+    @patch.dict(os.environ, {"HOME": "/home/user"}, clear=True)
+    def test_home_expansion_and_globbing(self, mock_glob):
+        mock_glob.return_value = ["/home/user/file1.txt", "/home/user/file2.txt"]
+        result = InputParser("ls -l ~/*.txt").parse()
+        self.assertEqual(
+            result,
+            [
+                UserInput(
+                    input_parts=[
+                        "ls",
+                        "-l",
+                        "/home/user/file1.txt",
+                        "/home/user/file2.txt",
+                    ],
+                    output_file=None,
+                    error_file=None,
+                )
+            ],
+        )
+        mock_glob.assert_called_once_with("/home/user/*.txt")
 
     def test_eval_variable_assignment_returns_assignment_command(self):
         command, args = self.shell._eval("ABC=5")
@@ -989,86 +1184,6 @@ class TestPyShell(unittest.TestCase):
         command.execute(args)
         self.assertEqual(os.environ.get("ABC"), "5")
 
-    @patch('glob.glob')
-    def test_no_glob_patterns(self, mock_glob):
-        """Test with a list containing no glob patterns."""
-        input_list = ["a", "b", "c/d"]
-        expected_output = ["a", "b", "c/d"]
-        actual_output = self.shell._expand_glob_patterns(input_list)
-        self.assertEqual(actual_output, expected_output)
-        mock_glob.assert_not_called()
-
-    @patch('glob.glob')
-    def test_single_glob_pattern_with_matches(self, mock_glob):
-        """Test with a single glob pattern that has matches."""
-        input_list = ["a", "*.txt", "c"]
-        # Configure the mock to return specific values when called with "*.txt"
-        mock_glob.return_value = ["file1.txt", "file2.txt"]
-        expected_output = ["a", "file1.txt", "file2.txt", "c"]
-        actual_output = self.shell._expand_glob_patterns(input_list)
-        self.assertEqual(actual_output, expected_output)
-        mock_glob.assert_called_once_with("*.txt")
-
-    @patch('glob.glob')
-    def test_single_glob_pattern_no_matches(self, mock_glob):
-        """Test with a single glob pattern that has no matches."""
-        input_list = ["a", "*.log", "c"]
-        mock_glob.return_value = [] # Simulate no matching files
-        expected_output = ["a", "*.log", "c"] # Original pattern should remain
-        actual_output = self.shell._expand_glob_patterns(input_list)
-        self.assertEqual(actual_output, expected_output)
-        mock_glob.assert_called_once_with("*.log")
-
-    @patch('glob.glob')
-    def test_multiple_glob_patterns(self, mock_glob):
-        """Test with multiple glob patterns."""
-        input_list = ["dir1/*.py", "file.txt", "dir2/foo_*.csv"]
-        # Use side_effect to provide different return values based on arguments
-        # The order of return values here matches the order of glob.glob calls
-        mock_glob.side_effect = [
-            ["dir1/script1.py", "dir1/script2.py"], # For "dir1/*.py"
-            ["dir2/foo_report.csv"] # For "dir2/foo_*.csv"
-        ]
-        expected_output = ["dir1/script1.py", "dir1/script2.py", "file.txt", "dir2/foo_report.csv"]
-        actual_output = self.shell._expand_glob_patterns(input_list)
-        self.assertEqual(actual_output, expected_output)
-        # Check that glob.glob was called for each pattern
-        mock_glob.assert_any_call("dir1/*.py")
-        mock_glob.assert_any_call("dir2/foo_*.csv")
-        self.assertEqual(mock_glob.call_count, 2)
-
-    @patch('glob.glob')
-    def test_empty_input_list(self, mock_glob):
-        """Test with an empty input list."""
-        input_list = []
-        expected_output = []
-        actual_output = self.shell._expand_glob_patterns(input_list)
-        self.assertEqual(actual_output, expected_output)
-        mock_glob.assert_not_called()
-
-    @patch('glob.glob')
-    def test_list_with_mixed_content_and_recursive_glob(self, mock_glob):
-        """Test a list with various elements, including a recursive glob pattern."""
-        input_list = ["plain_file.txt", "docs/**/*.md", "another_item"]
-        mock_glob.side_effect = [
-            ["docs/report.md", "docs/subdir/notes.md"] # For "docs/**/*.md"
-        ]
-        expected_output = ["plain_file.txt", "docs/report.md", "docs/subdir/notes.md", "another_item"]
-        actual_output = self.shell._expand_glob_patterns(input_list)
-        self.assertEqual(actual_output, expected_output)
-        mock_glob.assert_called_once_with("docs/**/*.md")
-
-    @patch('glob.glob')
-    def test_special_characters_no_glob_match(self, mock_glob):
-        """Test a string with characters that could be glob patterns, but are not intended as such, and have no matches."""
-        input_list = ["file[name].txt", "q?uiz.pdf"]
-        mock_glob.side_effect = [[],[]] # No matches for the literal interpretation
-        expected_output = ["file[name].txt", "q?uiz.pdf"]
-        actual_output = self.shell._expand_glob_patterns(input_list)
-        self.assertEqual(actual_output, expected_output)
-        mock_glob.assert_any_call("file[name].txt")
-        mock_glob.assert_any_call("q?uiz.pdf")
-        self.assertEqual(mock_glob.call_count, 2)
 
 class TestAICommands(unittest.TestCase):
     def setUp(self):
@@ -1101,7 +1216,9 @@ class TestAICommands(unittest.TestCase):
         self.assertIsInstance(do_command, DoCommand)
 
         mock_sub_command = unittest.mock.Mock(spec=do_command)
-        do_command.shell._eval = unittest.mock.Mock(return_value=(mock_sub_command, ["-l"]))
+        do_command.shell._eval = unittest.mock.Mock(
+            return_value=(mock_sub_command, ["-l"])
+        )
         do_command.execute(do_args)
 
         # Assert
@@ -1145,7 +1262,9 @@ class TestAICommands(unittest.TestCase):
         mock_sub_command.execute.assert_called_once_with(["-rf", "/"])
 
     @patch("pyShell.DoCommand.get_structured_response_from_ai")
-    @patch("pyShell.DoCommand._show_warning_message", return_value=False)  # User rejects
+    @patch(
+        "pyShell.DoCommand._show_warning_message", return_value=False
+    )  # User rejects
     def test_do_command_risky_execution_rejected(
         self, mock_show_warning, mock_get_response
     ):
@@ -1213,9 +1332,7 @@ class TestAICommands(unittest.TestCase):
         with self.assertRaises(CommandError) as cm:
             do_command.execute(do_args)
 
-        self.assertEqual(
-            str(cm.exception), "Invalid response format from the AI"
-        )
+        self.assertEqual(str(cm.exception), "Invalid response format from the AI")
         mock_get_response.assert_called_once()
 
     @patch("pyShell.AICommand.execute_ai")
@@ -1232,11 +1349,10 @@ class TestAICommands(unittest.TestCase):
         do_command, do_args = self.shell._eval("do something")
         self.assertIsInstance(do_command, DoCommand)
 
-        # The exception is thrown because we don't actually configure the AI after the mocked method 
+        # The exception is thrown because we don't actually configure the AI after the mocked method
         # is called. This test is only to ensure that we will call the configuration method.
         with self.assertRaises(CommandError) as cm:
             do_command.execute(do_args)
-
 
         mock_configure_ai.assert_called_once()
 
@@ -1303,6 +1419,7 @@ class TestAICommands(unittest.TestCase):
         # Assert
         mock_get_response.assert_not_called()
         mock_print.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
