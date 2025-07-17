@@ -409,7 +409,7 @@ class DoCommand(AICommand):
     {
         "command": "<bash command>",
         "risk_assessment": <0|1|2>,
-        "explanation": "<explanation of the command>"
+        "explanation": "<explanation of the command>",
         "disclaimer": "<disclaimer shown if risk > 0, empty string otherwise>"
     }
 
@@ -493,7 +493,7 @@ class ExplainCommand(AICommand):
     SYSTEM_PROMPT = """
     You are a highly experienced Unix system administrator and command line expert. Given a Bash command, 
     output a detailed explanation of what the command does, including its components and their roles.
-    Also provide one or 2 examples onm how to use that command in a real-world scenario.
+    Also provide one or 2 examples on how to use that command in a real-world scenario.
     If the input provided is a complex command (e.g., a pipeline), break it down into its components
     and explain each part.
 
