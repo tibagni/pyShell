@@ -1,3 +1,5 @@
+[![Python application](https://github.com/tibagni/pyShell/actions/workflows/python-app.yml/badge.svg)](https://github.com/tibagni/pyShell/actions/workflows/python-app.yml)
+
 # pyShell
 
 A custom shell built from scratch in Python. This project was a fun exploration into how shells work, implementing core functionalities like command parsing, I/O redirection, and process pipelines.
