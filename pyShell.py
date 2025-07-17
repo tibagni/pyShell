@@ -4,6 +4,7 @@ import os
 import subprocess
 import readline
 import json
+import glob
 
 from litellm import completion
 from typing import List, Literal, TextIO, Tuple, Dict, Type, Optional, Final
@@ -995,6 +996,21 @@ class PyShell:
             finally:
                 command.tear_down()
 
+    def _expand_glob_patterns(self, original_args: List[str]) -> List[str]:
+        expanded_list = []
+        for original_arg in original_args:
+            if any(char in original_arg for char in '*?['): # Check for glob wildcards
+                globbed_results = glob.glob(original_arg)
+                if globbed_results:
+                    # TODO maybe check if it really is a path
+                    expanded_list.extend(globbed_results)
+                else:
+                    expanded_list.append(original_arg)
+            else:
+                expanded_list.append(original_arg)
+
+        return expanded_list
+
     def _eval(self, user_input: str) -> Tuple[Command, List[str]]:
         input_parser = InputParser(user_input)
         user_inputs = input_parser.parse()
@@ -1012,6 +1028,7 @@ class PyShell:
             cmd_factory = self._find_command(ui.input_parts[0])
             cmd_args = ui.input_parts[1:] if len(ui.input_parts) > 1 else []
             cmd_args = [os.path.expanduser(arg) for arg in cmd_args] # Expand "~" to the user's home
+            cmd_args = self._expand_glob_patterns(cmd_args)
 
             out_stream = None
             err_stream = None
