@@ -522,6 +522,58 @@ class ExplainCommand(AICommand):
         response = self.get_response_from_ai()
         print(response, file=self.out_stream)
 
+class SummarizeCommand(AICommand):
+    NAME = "summarize"
+    SYSTEM_PROMPT = (
+        "You are a helpful assistant that summarizes the content of files or directories. "
+        "If the input is a code file, provide a concise, high-level description of its purpose and main functions. "
+        "If the input is a markdown or text file, summarize the main points. "
+        "If the input is a directory, provide an overview of its purpose and list the main files and their roles."
+    )
+
+    def __init__(self, shell: "PyShell"):
+        super().__init__(SummarizeCommand.NAME, shell)
+        self.add_to_memory({"role": "system", "content": SummarizeCommand.SYSTEM_PROMPT})
+
+    def execute_ai(self, args: list[str]):
+        if not args:
+            raise CommandError("Usage: summarize <file-or-directory>")
+
+        target = args[0]
+        if not os.path.exists(target):
+            raise CommandError(f"File or directory '{target}' does not exist.")
+
+        content = ""
+        if os.path.isfile(target):
+            content = self._read_file_sample(target)
+            user_prompt = f"Summarize the following file ({target}):\n{content}"
+        elif os.path.isdir(target):
+            file_summaries = []
+            for fname in sorted(os.listdir(target)):
+                fpath = os.path.join(target, fname)
+                if os.path.isfile(fpath):
+                    snippet = self._read_file_sample(fpath, max_chars=350)
+                    file_summaries.append(f"{fname}:\n{snippet}\n")
+            dir_overview = "\n".join(file_summaries)
+            user_prompt = f"Summarize the following directory ({target}):\n{dir_overview}"
+        else:
+            print(f"Cannot summarize '{target}'.", file=self.err_stream)
+            return
+
+        self.add_to_memory({"role": "user", "content": user_prompt})
+        response = self.get_response_from_ai()
+        print(response, file=self.out_stream)
+
+    def _read_file_sample(self, filepath: str, max_chars: int = 800) -> str:
+        try:
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read(max_chars)
+                if len(content) == max_chars:
+                    content += "\n... (truncated)"
+                return content
+        except Exception as e:
+            return f"[Could not read file: {e}]"
+
 
 class CommandFactory:
     def __init__(self, command_type: Type[Command], *args, **kwargs):
@@ -826,6 +878,7 @@ class PyShell:
             HistoryCommand.NAME: CommandFactory(HistoryCommand, self),
             DoCommand.NAME: CommandFactory(DoCommand, self),
             ExplainCommand.NAME: CommandFactory(ExplainCommand, self),
+            SummarizeCommand.NAME: CommandFactory(SummarizeCommand, self),
         }
         self._last_dir = os.getcwd()
         self._cached_available_items = set()

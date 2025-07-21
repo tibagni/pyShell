@@ -16,6 +16,7 @@ from pyShell import (
     AssignmentCommand,
     DoCommand,
     ExplainCommand,
+    SummarizeCommand
 )
 
 
@@ -1422,6 +1423,72 @@ class TestAICommands(unittest.TestCase):
         # Assert
         mock_get_response.assert_not_called()
         mock_print.assert_not_called()
+
+    @patch("pyShell.SummarizeCommand.get_response_from_ai")
+    @patch("builtins.open", new_callable=mock_open, read_data="print('hello world')\n")
+    @patch("builtins.print")
+    @patch("os.path.isfile", return_value=True)
+    @patch("os.path.exists", return_value=True)
+    def test_summarize_file(self, mock_exists, mock_isfile, mock_print, mock_open_file, mock_get_response):
+        mock_summary = "This script prints hello world."
+        mock_get_response.return_value = mock_summary
+
+        command, args = self.shell._eval("summarize test.py")
+        self.assertIsInstance(command, SummarizeCommand)
+        command.execute(args)
+
+        mock_get_response.assert_called_once()
+        mock_print.assert_called_once_with(mock_summary, file=ANY)
+
+    @patch("pyShell.SummarizeCommand.get_response_from_ai")
+    @patch("os.listdir", return_value=["a.py", "b.md"])
+    @patch("builtins.open", new_callable=mock_open, read_data="print('hello world')\n")
+    @patch("builtins.print")
+    @patch("os.path.isfile", return_value=True)
+    @patch("os.path.exists", return_value=True)
+    def test_summarize_directory(self, mock_exists, mock_isfile, mock_print, mock_open_file, mock_listdir, mock_get_response):
+        mock_summary = "This directory contains Python and Markdown files."
+        mock_get_response.return_value = mock_summary
+
+        command, args = self.shell._eval("summarize test_dir")
+        self.assertIsInstance(command, SummarizeCommand)
+        command.execute(args)
+
+        mock_get_response.assert_called_once()
+        mock_print.assert_called_once_with(mock_summary, file=ANY)
+
+    @patch("pyShell.SummarizeCommand.get_response_from_ai")
+    @patch("builtins.open", new_callable=mock_open, read_data="x" * 1000)
+    @patch("builtins.print") # Do not print anything on the stdout
+    @patch("os.path.isfile", return_value=True)
+    @patch("os.path.exists", return_value=True)
+    @patch.object(SummarizeCommand, "add_to_memory")
+    def test_large_file_truncation(self, mock_add_to_memory, mock_exists, mock_isfile, mock_print, mock_open_file, mock_get_response):
+        mock_summary = "Truncated summary"
+        mock_get_response.return_value = mock_summary
+
+        command, args = self.shell._eval("summarize very_large_file.txt")
+        self.assertIsInstance(command, SummarizeCommand)
+        command.execute(args)
+
+        add_to_memory_args, _ = mock_add_to_memory.call_args_list[-1]
+        # Confirm that the file content passed to AI is truncated and ends with "... (truncated)" if file is large.
+        self.assertIn("... (truncated)", add_to_memory_args[0]["content"])
+
+    @patch("os.path.exists", return_value=False)
+    def test_nonexistent_file(self, mock_exists):
+        command, args = self.shell._eval("summarize no_such_file.txt")
+        self.assertIsInstance(command, SummarizeCommand)
+
+        with self.assertRaises(CommandError) as cm:
+            command.execute(args)
+
+    def test_no_argument(self):
+        command, args = self.shell._eval("summarize")
+        self.assertIsInstance(command, SummarizeCommand)
+
+        with self.assertRaises(CommandError) as cm:
+            command.execute(args)
 
 
 if __name__ == "__main__":

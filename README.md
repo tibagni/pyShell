@@ -4,7 +4,7 @@
 
 A custom shell built from scratch in Python. This project was a fun exploration into how shells work, implementing core functionalities like command parsing, I/O redirection, and process pipelines.
 
-As a unique feature, it also integrates with AI to offer command generation and explanation.
+As a unique feature, it also integrates with AI to offer command generation, explanation, and summarization of files and directories.
 
 > **Note:** This is a personal project with a limited feature set. It's shared in the hope that it might serve as a useful or interesting starting point for others looking to build their own command-line tools.
 
@@ -25,6 +25,7 @@ As a unique feature, it also integrates with AI to offer command generation and 
 
 *   **`do`**: Describe a task in plain English, and have the AI generate the shell command for you. Includes a safety check for potentially risky commands.
 *   **`explain`**: Get a simple, human-readable explanation of what any shell command does.
+*   **`summarize`**: Summarize the purpose or content of a file or directory using AI. Works for code, markdown, text files, or entire directories.
 
 ---
 
@@ -41,6 +42,7 @@ To start an interactive `pyShell` session, simply execute:
 ```
 
 ### Run Tests
+
 To run the suite of unit tests for the project, use the -t flag:
 
 ```bash
@@ -67,9 +69,11 @@ $ pwd
 ```
 
 ## AI Commands
-The first time you use an AI-powered command (`do` or `explain`), pyShell will prompt you to configure your AI provider settings. These settings are saved to a .pyShell file in your home directory (~/.pyShell) for future sessions.
+
+The first time you use an AI-powered command (`do`, `explain`, `summarize`), pyShell will prompt you to configure your AI provider settings. These settings are saved to a .pyShell file in your home directory (`~/.pyShell`) for future sessions.
 
 ### Example: `do` command
+
 Let the AI figure out the command for you.
 
 ```console
@@ -79,6 +83,7 @@ $ do find all files in the current directory that have been modified in the last
 ```
 
 ### Example: `explain` command
+
 Understand what a complex command does before you run it.
 
 ```console
@@ -89,4 +94,16 @@ This command creates a compressed archive.
 - 'v': Verbosely shows the .tar file progress.
 - 'f': Specifies the archive file name.
 Example: Backing up a project folder.
+```
+
+### Example: `summarize` command
+
+Summarize the contents or purpose of a file or directory.
+
+```console
+$ summarize script.py
+This Python script reads a CSV file and prints summary statistics for each column.
+
+$ summarize my_folder/
+This folder contains several Python scripts for data analysis, including data_clean.py (cleans input data) and plot_results.py (generates graphs).
 ```
