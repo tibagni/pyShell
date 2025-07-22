@@ -524,12 +524,12 @@ class ExplainCommand(AICommand):
 
 class SummarizeCommand(AICommand):
     NAME = "summarize"
-    SYSTEM_PROMPT = (
-        "You are a helpful assistant that summarizes the content of files or directories. "
-        "If the input is a code file, provide a concise, high-level description of its purpose and main functions. "
-        "If the input is a markdown or text file, summarize the main points. "
-        "If the input is a directory, provide an overview of its purpose and list the main files and their roles."
-    )
+    SYSTEM_PROMPT = """
+    You are a helpful assistant that summarizes the content of files or directories.
+    If the input is a code file, provide a concise, high-level description of its purpose and main functions.
+    If the input is a markdown or text file, summarize the main points.
+    If the input is a directory, provide an overview of its purpose and list the main files and their roles
+    """
 
     def __init__(self, shell: "PyShell"):
         super().__init__(SummarizeCommand.NAME, shell)
