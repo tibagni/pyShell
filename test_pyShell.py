@@ -16,7 +16,8 @@ from pyShell import (
     AssignmentCommand,
     DoCommand,
     ExplainCommand,
-    SummarizeCommand
+    SummarizeCommand,
+    QuickRefCommand
 )
 
 
@@ -1489,6 +1490,64 @@ class TestAICommands(unittest.TestCase):
 
         with self.assertRaises(CommandError) as cm:
             command.execute(args)
+
+    @patch("pyShell.QuickRefCommand.get_response_from_ai")
+    @patch("pyShell.QuickRefCommand.fetch_man_page")
+    @patch("builtins.print") # Do not print anything on the stdout
+    @patch.object(QuickRefCommand, "add_to_memory")
+    def test_quickref_command(
+        self, mock_add_to_memory, mock_print, mock_fetch_man_page, mock_get_response
+    ):
+        mock_ai_response = "Mocked summary of ls man page"
+        mock_man_page = "This is the man page for ls"
+        mock_get_response.return_value = mock_ai_response
+        mock_fetch_man_page.return_value = mock_man_page
+
+        command, args = self.shell._eval("quickref ls")
+        self.assertIsInstance(command, QuickRefCommand)
+        command.execute(args)
+
+        mock_get_response.assert_called_once()
+
+        add_to_memory_args, _ = mock_add_to_memory.call_args_list[-1]
+        self.assertIn(mock_man_page, add_to_memory_args[0]["content"])
+
+    @patch("pyShell.QuickRefCommand.get_response_from_ai")
+    def test_quickref_command_no_args(self, mock_get_response):
+        command, args = self.shell._eval("quickref")
+        self.assertIsInstance(command, QuickRefCommand)
+        with self.assertRaises(CommandError) as cm:
+            command.execute(args)
+
+        mock_get_response.assert_not_called()
+
+    @patch("pyShell.QuickRefCommand.get_response_from_ai")
+    @patch("pyShell.QuickRefCommand.fetch_man_page")
+    def test_quickref_command_no_man_page_found(
+        self, mock_fetch_man_page, mock_get_response
+    ):
+        mock_man_page = ""
+        mock_fetch_man_page.return_value = mock_man_page
+
+        command, args = self.shell._eval("quickref invalidcommand")
+        with self.assertRaises(CommandError) as cm:
+            command.execute(args)
+
+        mock_get_response.assert_not_called()
+
+    @patch("pyShell.QuickRefCommand.get_response_from_ai")
+    @patch("pyShell.QuickRefCommand.fetch_man_page")
+    def test_quickref_command_no_man_page_found_with_none(
+        self, mock_fetch_man_page, mock_get_response
+    ):
+        mock_man_page = None
+        mock_fetch_man_page.return_value = mock_man_page
+
+        command, args = self.shell._eval("quickref invalidcommand")
+        with self.assertRaises(CommandError) as cm:
+            command.execute(args)
+
+        mock_get_response.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -356,8 +356,12 @@ class AICommand(BuiltinCommand):
         self.shell.show_intenral_message(
             "\nBefore using an AI builtin, there's a few parameters you need to configure:"
         )
-        provider = self.shell.request_internal_input("Enter AI provider (e.g., openai): ")
-        model = self.shell.request_internal_input("Enter AI model (e.g., gpt-4o-mini): ")
+        provider = self.shell.request_internal_input(
+            "Enter AI provider (e.g., openai): "
+        )
+        model = self.shell.request_internal_input(
+            "Enter AI model (e.g., gpt-4o-mini): "
+        )
         token = self.shell.request_internal_input("Enter AI token: ")
 
         if not provider or not model or not token:
@@ -462,8 +466,7 @@ class DoCommand(AICommand):
     def execute_ai(self, args: List[str]):
         user_prompt = " ".join(args)
         if not user_prompt:
-            print(f"No command provided to '{DoCommand.NAME}'", file=self.err_stream)
-            return
+            raise CommandError(f"Usage: {self.NAME} <Description of what to do>")
 
         self.add_to_memory({"role": "user", "content": user_prompt})
         response = self.get_structured_response_from_ai()
@@ -471,7 +474,7 @@ class DoCommand(AICommand):
         if not response["command"]:
             print(response["explanation"], file=self.err_stream)
             return
-        
+
         self.shell.show_intenral_message(f"> Executing '{response['command']}'...")
 
         if response["risk_assessment"] > 0:
@@ -522,6 +525,7 @@ class ExplainCommand(AICommand):
         response = self.get_response_from_ai()
         print(response, file=self.out_stream)
 
+
 class SummarizeCommand(AICommand):
     NAME = "summarize"
     SYSTEM_PROMPT = """
@@ -533,11 +537,13 @@ class SummarizeCommand(AICommand):
 
     def __init__(self, shell: "PyShell"):
         super().__init__(SummarizeCommand.NAME, shell)
-        self.add_to_memory({"role": "system", "content": SummarizeCommand.SYSTEM_PROMPT})
+        self.add_to_memory(
+            {"role": "system", "content": SummarizeCommand.SYSTEM_PROMPT}
+        )
 
     def execute_ai(self, args: list[str]):
         if not args:
-            raise CommandError("Usage: summarize <file-or-directory>")
+            raise CommandError(f"Usage: {self.NAME} <file-or-directory>")
 
         target = args[0]
         if not os.path.exists(target):
@@ -555,7 +561,9 @@ class SummarizeCommand(AICommand):
                     snippet = self._read_file_sample(fpath, max_chars=350)
                     file_summaries.append(f"{fname}:\n{snippet}\n")
             dir_overview = "\n".join(file_summaries)
-            user_prompt = f"Summarize the following directory ({target}):\n{dir_overview}"
+            user_prompt = (
+                f"Summarize the following directory ({target}):\n{dir_overview}"
+            )
         else:
             print(f"Cannot summarize '{target}'.", file=self.err_stream)
             return
@@ -573,6 +581,59 @@ class SummarizeCommand(AICommand):
                 return content
         except Exception as e:
             return f"[Could not read file: {e}]"
+
+
+class QuickRefCommand(AICommand):
+    NAME = "quickref"
+
+    SYSTEM_PROMPT = """
+    You are a helpful AI assistant. The user will provide the name of a Unix command.
+    Your job is to read the man page (provided as context) for that command and produce:
+    1. A concise summary of what the command does.
+    2. The most useful/common options (with a brief description for each).
+    3. 2-3 practical usage examples.
+    Respond in a clear, beginner-friendly format.
+    If the man page is very long, focus only on the most important highlights.
+    Don't include any follow up options. Don't ask if the user needs more clarifications or has any questions.
+    """
+
+    def __init__(self, shell: "PyShell"):
+        super().__init__(QuickRefCommand.NAME, shell)
+        self.add_to_memory({"role": "system", "content": QuickRefCommand.SYSTEM_PROMPT})
+
+    def fetch_man_page(self, command: str) -> str:
+        try:
+            result = subprocess.run(
+                ["man", command],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True,
+            )
+            return result.stdout
+        except Exception:
+            return ""
+
+    def execute_ai(self, args):
+        if not args:
+            raise CommandError(f"Usage: {self.NAME} <command>")
+
+        user_command = args[0]
+
+        self.shell.show_intenral_message(f"Fetching the man pages for {user_command}...")
+        man_text = self.fetch_man_page(user_command)
+        if not man_text:
+            raise CommandError(f"Could not retrieve man page for '{user_command}'.")
+
+        self.shell.show_intenral_message(f"Summarizing content...")
+        self.add_to_memory(
+            {
+                "role": "user",
+                "content": f"Here is the man page for '{user_command}':\n\n{man_text}\n\nSummarize as described.",
+            }
+        )
+        response = self.get_response_from_ai()
+        print(response, file=self.out_stream)
 
 
 class CommandFactory:
@@ -879,6 +940,7 @@ class PyShell:
             DoCommand.NAME: CommandFactory(DoCommand, self),
             ExplainCommand.NAME: CommandFactory(ExplainCommand, self),
             SummarizeCommand.NAME: CommandFactory(SummarizeCommand, self),
+            QuickRefCommand.NAME: CommandFactory(QuickRefCommand, self),
         }
         self._last_dir = os.getcwd()
         self._cached_available_items = set()
@@ -893,7 +955,6 @@ class PyShell:
 
     def request_internal_input(self, message: str) -> str:
         return input(f"\033[90m {message} \033[0m").strip()
-
 
     def _get_pyshell_config_path(self) -> str:
         return os.path.join(os.path.expanduser("~"), self.PYSHELL_CONFIG_FILE)

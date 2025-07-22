@@ -26,6 +26,7 @@ As a unique feature, it also integrates with AI to offer command generation, exp
 *   **`do`**: Describe a task in plain English, and have the AI generate the shell command for you. Includes a safety check for potentially risky commands.
 *   **`explain`**: Get a simple, human-readable explanation of what any shell command does.
 *   **`summarize`**: Summarize the purpose or content of a file or directory using AI. Works for code, markdown, text files, or entire directories.
+*   **`quickref`**: Get a summarized, beginner-friendly guide for any Unix command
 
 ---
 
@@ -106,4 +107,24 @@ This Python script reads a CSV file and prints summary statistics for each colum
 
 $ summarize my_folder/
 This folder contains several Python scripts for data analysis, including data_clean.py (cleans input data) and plot_results.py (generates graphs).
+```
+
+### Example: `quickref` command
+
+Get a quick, summarized reference for any Unix command, including its purpose, main options, and usage examples.
+
+```console
+quickref tar
+ Fetching the man pages for man... 
+ Summarizing content... 
+Summary:
+  tar is an archiving utility for combining and extracting files.
+Common Options:
+  -c   Create a new archive
+  -x   Extract files from an archive
+  -v   Verbose output
+  -f   Specify archive file name
+Examples:
+  tar -cvf archive.tar folder/
+  tar -xvf archive.tar
 ```
