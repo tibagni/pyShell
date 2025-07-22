@@ -114,7 +114,7 @@ This folder contains several Python scripts for data analysis, including data_cl
 Get a quick, summarized reference for any Unix command, including its purpose, main options, and usage examples.
 
 ```console
-quickref tar
+$ quickref tar
  Fetching the man pages for man... 
  Summarizing content... 
 Summary:
